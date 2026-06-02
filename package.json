@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix frontend install",
+    "dev": "concurrently \"npm --prefix frontend run dev\" \"mvn -f backend/pom.xml spring-boot:run\"",
+    "build": "npm --prefix frontend run build && mvn -f backend/pom.xml clean package"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

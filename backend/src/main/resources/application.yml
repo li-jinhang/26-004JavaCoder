@@ -1,0 +1,6 @@
+server:
+  port: 26904
+
+spring:
+  application:
+    name: javacoder-backend
