@@ -46,18 +46,49 @@
       <div v-if="errorMessage" class="error-banner">{{ errorMessage }}</div>
       <div v-if="loadingProblems" class="loading-panel">正在加载题目...</div>
 
+      <section class="catalog-toolbar" aria-label="题目搜索与筛选">
+        <label class="search-box">
+          <span>搜索</span>
+          <input
+            v-model.trim="searchQuery"
+            type="search"
+            placeholder="题号、标题、标签"
+            autocomplete="off"
+          />
+        </label>
+        <div class="difficulty-filter" role="tablist" aria-label="按难度筛选">
+          <button
+            v-for="option in difficultyOptions"
+            :key="option"
+            :class="{ active: difficultyFilter === option }"
+            type="button"
+            role="tab"
+            :aria-selected="difficultyFilter === option"
+            @click="difficultyFilter = option"
+          >
+            {{ option }}
+          </button>
+        </div>
+        <div class="toolbar-count">
+          <strong>{{ filteredProblems.length }}</strong>
+          <span>/ {{ problems.length }} 题</span>
+        </div>
+      </section>
+
       <div class="home-layout">
         <section class="problem-catalog" aria-label="题目列表">
           <button
-            v-for="problem in problems"
+            v-for="problem in filteredProblems"
             :key="problem.id"
             class="problem-card"
             type="button"
             @click="openProblem(problem.id)"
           >
-            <span class="problem-index">No. {{ problem.id }}</span>
-            <span :class="['difficulty', difficultyClass(problem.difficulty)]">
-              {{ displayDifficulty(problem.difficulty) }}
+            <span class="problem-card-top">
+              <span class="problem-index">No. {{ formatProblemNumber(problem.id) }}</span>
+              <span :class="['difficulty', difficultyClass(problem.difficulty)]">
+                {{ displayDifficulty(problem.difficulty) }}
+              </span>
             </span>
             <strong>{{ problem.title }}</strong>
             <span class="tag-row compact">
@@ -68,6 +99,10 @@
               <span>开始作答</span>
             </span>
           </button>
+          <div v-if="!loadingProblems && filteredProblems.length === 0" class="catalog-empty">
+            <strong>没有找到匹配题目</strong>
+            <span>换个关键词或清除难度筛选</span>
+          </div>
         </section>
 
         <aside class="activity-panel">
@@ -293,6 +328,8 @@ const selectedProblem = ref(null)
 const submissions = ref([])
 const code = ref('')
 const latestResult = ref(null)
+const searchQuery = ref('')
+const difficultyFilter = ref('全部')
 const loadingProblems = ref(false)
 const loadingProblem = ref(false)
 const submitting = ref(false)
@@ -312,9 +349,35 @@ const authenticating = ref(false)
 const pendingAuthAction = ref(null)
 let submissionPollTimer = null
 
+const difficultyOptions = ['全部', '简单', '中等', '困难']
 const activeProblemId = computed(() => selectedProblem.value?.id)
 const acceptedProblemCount = computed(() => problems.value.filter((problem) => problem.acceptedCount > 0).length)
 const currentSolution = computed(() => solutionCodeByProblemId[activeProblemId.value] || '')
+const filteredProblems = computed(() => {
+  const keyword = searchQuery.value.trim().toLowerCase()
+
+  return problems.value.filter((problem) => {
+    const difficulty = displayDifficulty(problem.difficulty)
+    const matchesDifficulty = difficultyFilter.value === '全部' || difficulty === difficultyFilter.value
+    if (!matchesDifficulty) {
+      return false
+    }
+
+    if (!keyword) {
+      return true
+    }
+
+    const searchableText = [
+      problem.id,
+      formatProblemNumber(problem.id),
+      problem.title,
+      difficulty,
+      ...problem.tags
+    ].join(' ').toLowerCase()
+
+    return searchableText.includes(keyword)
+  })
+})
 
 const solutionCodeByProblemId = {
   1: `import java.util.*;
@@ -401,6 +464,490 @@ public class Main {
         }
 
         System.out.println(length);
+    }
+}`
+,
+  4: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        long best = Long.MIN_VALUE;
+        long current = 0;
+
+        for (int i = 0; i < n; i++) {
+            int num = scanner.nextInt();
+            current = Math.max(num, current + num);
+            best = Math.max(best, current);
+        }
+
+        System.out.println(best);
+    }
+}`,
+  5: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        int target = scanner.nextInt();
+        int[] nums = new int[n];
+        for (int i = 0; i < n; i++) {
+            nums[i] = scanner.nextInt();
+        }
+
+        int left = 0;
+        int right = n - 1;
+        while (left <= right) {
+            int mid = left + (right - left) / 2;
+            if (nums[mid] == target) {
+                System.out.println(mid);
+                return;
+            }
+            if (nums[mid] < target) {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+
+        System.out.println(-1);
+    }
+}`,
+  6: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        int[][] intervals = new int[n][2];
+        for (int i = 0; i < n; i++) {
+            intervals[i][0] = scanner.nextInt();
+            intervals[i][1] = scanner.nextInt();
+        }
+
+        Arrays.sort(intervals, Comparator.comparingInt(interval -> interval[0]));
+        StringBuilder output = new StringBuilder();
+        int start = intervals[0][0];
+        int end = intervals[0][1];
+
+        for (int i = 1; i < n; i++) {
+            if (intervals[i][0] <= end) {
+                end = Math.max(end, intervals[i][1]);
+            } else {
+                output.append(start).append(' ').append(end).append('\\n');
+                start = intervals[i][0];
+                end = intervals[i][1];
+            }
+        }
+
+        output.append(start).append(' ').append(end);
+        System.out.println(output);
+    }
+}`,
+  7: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        long first = 1;
+        long second = 1;
+
+        for (int i = 2; i <= n; i++) {
+            long next = first + second;
+            first = second;
+            second = next;
+        }
+
+        System.out.println(second);
+    }
+}`,
+  8: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        int minPrice = Integer.MAX_VALUE;
+        int bestProfit = 0;
+
+        for (int i = 0; i < n; i++) {
+            int price = scanner.nextInt();
+            minPrice = Math.min(minPrice, price);
+            bestProfit = Math.max(bestProfit, price - minPrice);
+        }
+
+        System.out.println(bestProfit);
+    }
+}`,
+  9: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        int[] nums = new int[n];
+        for (int i = 0; i < n; i++) {
+            nums[i] = scanner.nextInt();
+        }
+
+        int write = 0;
+        for (int num : nums) {
+            if (num != 0) {
+                nums[write++] = num;
+            }
+        }
+        while (write < n) {
+            nums[write++] = 0;
+        }
+
+        StringBuilder output = new StringBuilder();
+        for (int i = 0; i < n; i++) {
+            if (i > 0) {
+                output.append(' ');
+            }
+            output.append(nums[i]);
+        }
+        System.out.println(output);
+    }
+}`,
+  10: `import java.util.*;
+
+public class Main {
+    private static final int[][] DIRECTIONS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int m = scanner.nextInt();
+        int n = scanner.nextInt();
+        char[][] grid = new char[m][n];
+        for (int i = 0; i < m; i++) {
+            grid[i] = scanner.next().toCharArray();
+        }
+
+        int islands = 0;
+        for (int row = 0; row < m; row++) {
+            for (int col = 0; col < n; col++) {
+                if (grid[row][col] == '1') {
+                    islands++;
+                    flood(grid, row, col);
+                }
+            }
+        }
+
+        System.out.println(islands);
+    }
+
+    private static void flood(char[][] grid, int startRow, int startCol) {
+        Deque<int[]> queue = new ArrayDeque<>();
+        queue.offer(new int[] {startRow, startCol});
+        grid[startRow][startCol] = '0';
+
+        while (!queue.isEmpty()) {
+            int[] cell = queue.poll();
+            for (int[] direction : DIRECTIONS) {
+                int nextRow = cell[0] + direction[0];
+                int nextCol = cell[1] + direction[1];
+                if (nextRow < 0 || nextRow >= grid.length || nextCol < 0 || nextCol >= grid[0].length) {
+                    continue;
+                }
+                if (grid[nextRow][nextCol] == '1') {
+                    grid[nextRow][nextCol] = '0';
+                    queue.offer(new int[] {nextRow, nextCol});
+                }
+            }
+        }
+    }
+}`,
+  11: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        String s = scanner.hasNextLine() ? scanner.nextLine() : "";
+        Map<Character, Integer> lastIndex = new HashMap<>();
+        int left = 0;
+        int best = 0;
+
+        for (int right = 0; right < s.length(); right++) {
+            char ch = s.charAt(right);
+            if (lastIndex.containsKey(ch)) {
+                left = Math.max(left, lastIndex.get(ch) + 1);
+            }
+            lastIndex.put(ch, right);
+            best = Math.max(best, right - left + 1);
+        }
+
+        System.out.println(best);
+    }
+}`,
+  12: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        String s = scanner.nextLine();
+        String t = scanner.nextLine();
+
+        if (s.length() != t.length()) {
+            System.out.println(false);
+            return;
+        }
+
+        int[] counts = new int[26];
+        for (int i = 0; i < s.length(); i++) {
+            counts[s.charAt(i) - 'a']++;
+            counts[t.charAt(i) - 'a']--;
+        }
+
+        for (int count : counts) {
+            if (count != 0) {
+                System.out.println(false);
+                return;
+            }
+        }
+
+        System.out.println(true);
+    }
+}`,
+  13: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        int[] height = new int[n];
+        for (int i = 0; i < n; i++) {
+            height[i] = scanner.nextInt();
+        }
+
+        int left = 0;
+        int right = n - 1;
+        int leftMax = 0;
+        int rightMax = 0;
+        long water = 0;
+
+        while (left < right) {
+            if (height[left] < height[right]) {
+                leftMax = Math.max(leftMax, height[left]);
+                water += leftMax - height[left];
+                left++;
+            } else {
+                rightMax = Math.max(rightMax, height[right]);
+                water += rightMax - height[right];
+                right--;
+            }
+        }
+
+        System.out.println(water);
+    }
+}`,
+  14: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        int amount = scanner.nextInt();
+        int[] coins = new int[n];
+        for (int i = 0; i < n; i++) {
+            coins[i] = scanner.nextInt();
+        }
+
+        int impossible = amount + 1;
+        int[] dp = new int[amount + 1];
+        Arrays.fill(dp, impossible);
+        dp[0] = 0;
+
+        for (int value = 1; value <= amount; value++) {
+            for (int coin : coins) {
+                if (value >= coin) {
+                    dp[value] = Math.min(dp[value], dp[value - coin] + 1);
+                }
+            }
+        }
+
+        System.out.println(dp[amount] > amount ? -1 : dp[amount]);
+    }
+}`,
+  15: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int m = scanner.nextInt();
+        int n = scanner.nextInt();
+        long[][] dp = new long[m][n];
+
+        for (int row = 0; row < m; row++) {
+            for (int col = 0; col < n; col++) {
+                long value = scanner.nextLong();
+                if (row == 0 && col == 0) {
+                    dp[row][col] = value;
+                } else if (row == 0) {
+                    dp[row][col] = dp[row][col - 1] + value;
+                } else if (col == 0) {
+                    dp[row][col] = dp[row - 1][col] + value;
+                } else {
+                    dp[row][col] = Math.min(dp[row - 1][col], dp[row][col - 1]) + value;
+                }
+            }
+        }
+
+        System.out.println(dp[m - 1][n - 1]);
+    }
+}`,
+  16: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        int q = scanner.nextInt();
+        long[] prefix = new long[n + 1];
+        for (int i = 0; i < n; i++) {
+            prefix[i + 1] = prefix[i] + scanner.nextLong();
+        }
+
+        StringBuilder output = new StringBuilder();
+        for (int i = 0; i < q; i++) {
+            int left = scanner.nextInt();
+            int right = scanner.nextInt();
+            output.append(prefix[right + 1] - prefix[left]).append('\\n');
+        }
+
+        System.out.print(output);
+    }
+}`,
+  17: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        int m = scanner.nextInt();
+        List<List<Integer>> graph = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            graph.add(new ArrayList<>());
+        }
+        int[] indegree = new int[n];
+
+        for (int i = 0; i < m; i++) {
+            int course = scanner.nextInt();
+            int prerequisite = scanner.nextInt();
+            graph.get(prerequisite).add(course);
+            indegree[course]++;
+        }
+
+        Deque<Integer> queue = new ArrayDeque<>();
+        for (int i = 0; i < n; i++) {
+            if (indegree[i] == 0) {
+                queue.offer(i);
+            }
+        }
+
+        int learned = 0;
+        while (!queue.isEmpty()) {
+            int course = queue.poll();
+            learned++;
+            for (int next : graph.get(course)) {
+                indegree[next]--;
+                if (indegree[next] == 0) {
+                    queue.offer(next);
+                }
+            }
+        }
+
+        System.out.println(learned == n);
+    }
+}`,
+  18: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        int k = scanner.nextInt();
+        int[] nums = new int[n];
+        for (int i = 0; i < n; i++) {
+            nums[i] = scanner.nextInt();
+        }
+
+        Deque<Integer> deque = new ArrayDeque<>();
+        StringBuilder output = new StringBuilder();
+        for (int i = 0; i < n; i++) {
+            while (!deque.isEmpty() && deque.peekFirst() <= i - k) {
+                deque.pollFirst();
+            }
+            while (!deque.isEmpty() && nums[deque.peekLast()] <= nums[i]) {
+                deque.pollLast();
+            }
+            deque.offerLast(i);
+
+            if (i >= k - 1) {
+                if (output.length() > 0) {
+                    output.append(' ');
+                }
+                output.append(nums[deque.peekFirst()]);
+            }
+        }
+
+        System.out.println(output);
+    }
+}`,
+  19: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        String word1 = scanner.hasNextLine() ? scanner.nextLine() : "";
+        String word2 = scanner.hasNextLine() ? scanner.nextLine() : "";
+        int[] previous = new int[word2.length() + 1];
+
+        for (int j = 0; j <= word2.length(); j++) {
+            previous[j] = j;
+        }
+
+        for (int i = 1; i <= word1.length(); i++) {
+            int[] current = new int[word2.length() + 1];
+            current[0] = i;
+            for (int j = 1; j <= word2.length(); j++) {
+                if (word1.charAt(i - 1) == word2.charAt(j - 1)) {
+                    current[j] = previous[j - 1];
+                } else {
+                    current[j] = 1 + Math.min(previous[j - 1], Math.min(previous[j], current[j - 1]));
+                }
+            }
+            previous = current;
+        }
+
+        System.out.println(previous[word2.length()]);
+    }
+}`,
+  20: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        String text1 = scanner.nextLine();
+        String text2 = scanner.nextLine();
+        int[] previous = new int[text2.length() + 1];
+
+        for (int i = 1; i <= text1.length(); i++) {
+            int[] current = new int[text2.length() + 1];
+            for (int j = 1; j <= text2.length(); j++) {
+                if (text1.charAt(i - 1) == text2.charAt(j - 1)) {
+                    current[j] = previous[j - 1] + 1;
+                } else {
+                    current[j] = Math.max(previous[j], current[j - 1]);
+                }
+            }
+            previous = current;
+        }
+
+        System.out.println(previous[text2.length()]);
     }
 }`
 }
@@ -711,8 +1258,15 @@ function displayDifficulty(difficulty) {
   return {
     Easy: '简单',
     Medium: '中等',
-    Hard: '困难'
+    Hard: '困难',
+    简单: '简单',
+    中等: '中等',
+    困难: '困难'
   }[difficulty] || difficulty
+}
+
+function formatProblemNumber(problemId) {
+  return String(problemId).padStart(2, '0')
 }
 
 function displayStatus(status) {
@@ -832,6 +1386,99 @@ button {
   line-height: 1.7;
 }
 
+.catalog-toolbar {
+  max-width: 1360px;
+  margin: 0 auto 18px;
+  border: 1px solid rgba(32, 35, 38, 0.14);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 253, 247, 0.84);
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 18px 46px rgba(64, 55, 41, 0.08);
+}
+
+.search-box {
+  min-height: 48px;
+  border: 1px solid #cfc3b2;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fffaf0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.search-box span {
+  color: #a94f2f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.search-box input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #202326;
+  outline: none;
+}
+
+.search-box input::placeholder {
+  color: #8a8071;
+}
+
+.difficulty-filter {
+  min-height: 48px;
+  border: 1px solid #cfc3b2;
+  border-radius: 8px;
+  padding: 4px;
+  background: #f4ecdf;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(58px, 1fr));
+  gap: 4px;
+}
+
+.difficulty-filter button {
+  border-radius: 6px;
+  padding: 0 12px;
+  background: transparent;
+  color: #59625f;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.difficulty-filter button.active {
+  background: #202326;
+  color: #fff8ea;
+}
+
+.toolbar-count {
+  min-height: 48px;
+  border-radius: 8px;
+  padding: 0 14px;
+  background: #2c3435;
+  color: #fff8ea;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.toolbar-count strong {
+  font-size: 22px;
+}
+
+.toolbar-count span {
+  color: rgba(255, 248, 234, 0.72);
+  font-weight: 900;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: #a94f2f;
@@ -936,21 +1583,21 @@ button {
 .problem-catalog {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(3, minmax(220px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(4, minmax(210px, 1fr));
+  gap: 14px;
 }
 
 .problem-card {
-  min-height: 246px;
+  min-height: 198px;
   border: 1px solid rgba(32, 35, 38, 0.14);
   border-radius: 8px;
-  padding: 20px;
+  padding: 16px;
   background: #fffdf7;
   color: #202326;
   cursor: pointer;
   display: grid;
-  grid-template-rows: auto auto 1fr auto auto;
-  gap: 14px;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 12px;
   text-align: left;
   box-shadow: 0 20px 48px rgba(64, 55, 41, 0.08);
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
@@ -963,8 +1610,15 @@ button {
 }
 
 .problem-card strong {
-  font-size: 24px;
+  font-size: 20px;
   line-height: 1.25;
+}
+
+.problem-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .problem-index {
@@ -1042,11 +1696,31 @@ button {
 
 .activity-panel {
   width: 340px;
+  position: sticky;
+  top: 24px;
   border: 1px solid rgba(32, 35, 38, 0.14);
   border-radius: 8px;
   padding: 20px;
   background: #202326;
   color: #fff8ea;
+}
+
+.catalog-empty {
+  min-height: 198px;
+  border: 1px dashed #b9ad9d;
+  border-radius: 8px;
+  padding: 24px;
+  background: rgba(255, 253, 247, 0.62);
+  color: #59625f;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.catalog-empty strong {
+  color: #202326;
+  font-size: 18px;
 }
 
 .section-heading {
@@ -1427,6 +2101,10 @@ button:disabled {
     flex-direction: column;
   }
 
+  .catalog-toolbar {
+    grid-template-columns: 1fr;
+  }
+
   .home-stats,
   .home-side,
   .activity-panel,
@@ -1439,6 +2117,10 @@ button:disabled {
   .problem-catalog {
     width: 100%;
     grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+
+  .activity-panel {
+    position: static;
   }
 
   .problem-pane {
@@ -1474,6 +2156,14 @@ button:disabled {
   .problem-catalog,
   .examples {
     grid-template-columns: 1fr;
+  }
+
+  .difficulty-filter {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .toolbar-count {
+    justify-content: flex-start;
   }
 
   .home-stats div {

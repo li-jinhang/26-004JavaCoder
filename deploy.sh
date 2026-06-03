@@ -15,7 +15,8 @@ BACKEND_JAVA_OPTS="${BACKEND_JAVA_OPTS:-}"
 BACKEND_PID_FILE="${BACKEND_PID_FILE:-/opt/javacoder/backend/javacoder-backend.pid}"
 BACKEND_LOG_FILE="${BACKEND_LOG_FILE:-/opt/javacoder/backend/javacoder-backend.log}"
 
-FRONTEND_DEPLOY_DIR="${FRONTEND_DEPLOY_DIR:-/var/www/javacoder/frontend/dist}"
+FRONTEND_DEPLOY_DIR="${FRONTEND_DEPLOY_DIR:-${APP_DIR}/frontend/dist}"
+FRONTEND_BUILD_DIR="${FRONTEND_BUILD_DIR:-${APP_DIR}/.deploy/frontend-dist}"
 
 BUILD_SANDBOX_IMAGE="${BUILD_SANDBOX_IMAGE:-true}"
 SANDBOX_IMAGE_NAME="${SANDBOX_IMAGE_NAME:-javacoder-java17-sandbox:latest}"
@@ -75,7 +76,7 @@ install_dependencies() {
 
 build_project() {
   log "Building frontend"
-  npm --prefix "${APP_DIR}/frontend" run build
+  npm --prefix "${APP_DIR}/frontend" run build -- --outDir "${FRONTEND_BUILD_DIR}" --emptyOutDir
 
   log "Building backend"
   if [[ "${SKIP_TESTS}" == "true" ]]; then
@@ -92,10 +93,10 @@ build_project() {
 
 deploy_frontend() {
   log "Deploying frontend to ${FRONTEND_DEPLOY_DIR}"
-  [[ -d "${APP_DIR}/frontend/dist" ]] || fail "Frontend build output not found: ${APP_DIR}/frontend/dist"
+  [[ -d "${FRONTEND_BUILD_DIR}" ]] || fail "Frontend build output not found: ${FRONTEND_BUILD_DIR}"
 
   run_sudo mkdir -p "${FRONTEND_DEPLOY_DIR}"
-  run_sudo rsync -a --delete "${APP_DIR}/frontend/dist/" "${FRONTEND_DEPLOY_DIR}/"
+  run_sudo rsync -a --delete --exclude='.user.ini' "${FRONTEND_BUILD_DIR}/" "${FRONTEND_DEPLOY_DIR}/"
 }
 
 find_backend_jar() {
