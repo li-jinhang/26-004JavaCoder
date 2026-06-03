@@ -3,12 +3,9 @@ set -Eeuo pipefail
 
 # Linux deployment script for JavaCoder.
 # Override settings with environment variables, for example:
-#   BRANCH=main BACKEND_SERVICE=javacoder-backend FRONTEND_DEPLOY_DIR=/usr/share/nginx/html ./deploy.sh
+#   BACKEND_SERVICE=javacoder-backend FRONTEND_DEPLOY_DIR=/usr/share/nginx/html ./deploy.sh
 
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-REMOTE="${REMOTE:-origin}"
-BRANCH="${BRANCH:-}"
-ALLOW_DIRTY="${ALLOW_DIRTY:-false}"
 
 BACKEND_DEPLOY_DIR="${BACKEND_DEPLOY_DIR:-/opt/javacoder/backend}"
 BACKEND_JAR_NAME="${BACKEND_JAR_NAME:-javacoder-backend.jar}"
@@ -51,7 +48,6 @@ run_sudo() {
 }
 
 check_prerequisites() {
-  need_cmd git
   need_cmd npm
   need_cmd mvn
   need_cmd java
@@ -64,24 +60,6 @@ check_prerequisites() {
   if [[ "${USE_SUDO}" != "false" && "${EUID}" -ne 0 ]]; then
     need_cmd sudo
   fi
-}
-
-pull_latest_code() {
-  cd "${APP_DIR}"
-  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "${APP_DIR} is not a git repository"
-
-  if [[ -z "${BRANCH}" ]]; then
-    BRANCH="$(git symbolic-ref --short HEAD)"
-  fi
-
-  if [[ "${ALLOW_DIRTY}" != "true" && -n "$(git status --porcelain)" ]]; then
-    fail "Working tree is not clean. Commit, stash, or set ALLOW_DIRTY=true before deploying."
-  fi
-
-  log "Pulling latest code from ${REMOTE}/${BRANCH}"
-  git fetch "${REMOTE}" "${BRANCH}"
-  git checkout "${BRANCH}"
-  git pull --ff-only "${REMOTE}" "${BRANCH}"
 }
 
 install_dependencies() {
@@ -215,7 +193,6 @@ wait_for_healthcheck() {
 
 main() {
   check_prerequisites
-  pull_latest_code
   install_dependencies
   build_project
   deploy_frontend
