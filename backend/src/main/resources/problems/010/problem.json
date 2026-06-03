@@ -1,0 +1,50 @@
+{
+  "id": 10,
+  "title": "岛屿数量",
+  "difficulty": "中等",
+  "tags": [
+    "图",
+    "DFS",
+    "BFS"
+  ],
+  "description": "给定由 0 和 1 组成的网格，1 表示陆地，0 表示水域。上下左右相邻的陆地属于同一座岛屿，输出岛屿数量。",
+  "inputFormat": "第一行包含 m 和 n。接下来 m 行每行是长度为 n 的 01 字符串。",
+  "outputFormat": "输出岛屿数量。",
+  "constraints": "1 <= m, n <= 300",
+  "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int m = scanner.nextInt();\n        int n = scanner.nextInt();\n        char[][] grid = new char[m][n];\n        for (int i = 0; i < m; i++) {\n            grid[i] = scanner.next().toCharArray();\n        }\n\n        // TODO: 统计岛屿数量\n        System.out.println(0);\n    }\n}\n",
+  "examples": [
+    {
+      "input": "4 5\n11110\n11010\n11000\n00000\n",
+      "output": "1",
+      "explanation": "所有陆地连成一座岛屿。"
+    },
+    {
+      "input": "4 5\n11000\n11000\n00100\n00011\n",
+      "output": "3",
+      "explanation": "网格中有三座岛屿。"
+    }
+  ],
+  "testCases": [
+    {
+      "input": "4 5\n11110\n11010\n11000\n00000\n",
+      "expectedOutput": "1",
+      "hidden": false
+    },
+    {
+      "input": "4 5\n11000\n11000\n00100\n00011\n",
+      "expectedOutput": "3",
+      "hidden": false
+    },
+    {
+      "input": "1 1\n1\n",
+      "expectedOutput": "1",
+      "hidden": true
+    },
+    {
+      "input": "3 3\n010\n101\n010\n",
+      "expectedOutput": "4",
+      "hidden": true
+    }
+  ],
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    private static final int[][] DIRECTIONS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};\n\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int m = scanner.nextInt();\n        int n = scanner.nextInt();\n        char[][] grid = new char[m][n];\n        for (int i = 0; i < m; i++) {\n            grid[i] = scanner.next().toCharArray();\n        }\n\n        int islands = 0;\n        for (int row = 0; row < m; row++) {\n            for (int col = 0; col < n; col++) {\n                if (grid[row][col] == '1') {\n                    islands++;\n                    flood(grid, row, col);\n                }\n            }\n        }\n\n        System.out.println(islands);\n    }\n\n    private static void flood(char[][] grid, int startRow, int startCol) {\n        Deque<int[]> queue = new ArrayDeque<>();\n        queue.offer(new int[] {startRow, startCol});\n        grid[startRow][startCol] = '0';\n\n        while (!queue.isEmpty()) {\n            int[] cell = queue.poll();\n            for (int[] direction : DIRECTIONS) {\n                int nextRow = cell[0] + direction[0];\n                int nextCol = cell[1] + direction[1];\n                if (nextRow < 0 || nextRow >= grid.length || nextCol < 0 || nextCol >= grid[0].length) {\n                    continue;\n                }\n                if (grid[nextRow][nextCol] == '1') {\n                    grid[nextRow][nextCol] = '0';\n                    queue.offer(new int[] {nextRow, nextCol});\n                }\n            }\n        }\n    }\n}"
+}

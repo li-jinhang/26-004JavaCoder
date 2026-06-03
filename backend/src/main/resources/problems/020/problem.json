@@ -1,0 +1,49 @@
+{
+  "id": 20,
+  "title": "最长公共子序列",
+  "difficulty": "中等",
+  "tags": [
+    "字符串",
+    "动态规划"
+  ],
+  "description": "给定两个字符串 text1 和 text2，输出它们最长公共子序列的长度。子序列不要求连续，但相对顺序必须保持。",
+  "inputFormat": "第一行是 text1。第二行是 text2。",
+  "outputFormat": "输出最长公共子序列长度。",
+  "constraints": "1 <= text1.length, text2.length <= 1000",
+  "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String text1 = scanner.nextLine();\n        String text2 = scanner.nextLine();\n\n        // TODO: 输出最长公共子序列长度\n        System.out.println(0);\n    }\n}\n",
+  "examples": [
+    {
+      "input": "abcde\nace\n",
+      "output": "3",
+      "explanation": "最长公共子序列为 ace。"
+    },
+    {
+      "input": "abc\ndef\n",
+      "output": "0",
+      "explanation": "没有公共字符。"
+    }
+  ],
+  "testCases": [
+    {
+      "input": "abcde\nace\n",
+      "expectedOutput": "3",
+      "hidden": false
+    },
+    {
+      "input": "abc\ndef\n",
+      "expectedOutput": "0",
+      "hidden": false
+    },
+    {
+      "input": "abc\nabc\n",
+      "expectedOutput": "3",
+      "hidden": true
+    },
+    {
+      "input": "bsbininm\njmjkbkjkv\n",
+      "expectedOutput": "1",
+      "hidden": true
+    }
+  ],
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String text1 = scanner.nextLine();\n        String text2 = scanner.nextLine();\n        int[] previous = new int[text2.length() + 1];\n\n        for (int i = 1; i <= text1.length(); i++) {\n            int[] current = new int[text2.length() + 1];\n            for (int j = 1; j <= text2.length(); j++) {\n                if (text1.charAt(i - 1) == text2.charAt(j - 1)) {\n                    current[j] = previous[j - 1] + 1;\n                } else {\n                    current[j] = Math.max(previous[j], current[j - 1]);\n                }\n            }\n            previous = current;\n        }\n\n        System.out.println(previous[text2.length()]);\n    }\n}"
+}

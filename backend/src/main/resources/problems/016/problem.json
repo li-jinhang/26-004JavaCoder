@@ -1,0 +1,49 @@
+{
+  "id": 16,
+  "title": "区间和查询",
+  "difficulty": "简单",
+  "tags": [
+    "数组",
+    "前缀和"
+  ],
+  "description": "给定整数数组和多次查询，每次查询闭区间 [l, r] 的元素和。下标从 0 开始。",
+  "inputFormat": "第一行包含 n 和 q。第二行包含 n 个整数。接下来 q 行每行包含 l 和 r。",
+  "outputFormat": "每个查询输出一行区间和。",
+  "constraints": "1 <= n, q <= 100000, -100000 <= nums[i] <= 100000",
+  "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int q = scanner.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = scanner.nextInt();\n        }\n\n        // TODO: 使用前缀和回答 q 次查询\n    }\n}\n",
+  "examples": [
+    {
+      "input": "5 3\n1 2 3 4 5\n0 2\n1 3\n2 4\n",
+      "output": "6\n9\n12",
+      "explanation": "三个查询分别求 [0,2]、[1,3]、[2,4]。"
+    },
+    {
+      "input": "3 2\n-1 2 7\n0 0\n0 2\n",
+      "output": "-1\n8",
+      "explanation": "区间可以只包含一个元素。"
+    }
+  ],
+  "testCases": [
+    {
+      "input": "5 3\n1 2 3 4 5\n0 2\n1 3\n2 4\n",
+      "expectedOutput": "6\n9\n12",
+      "hidden": false
+    },
+    {
+      "input": "3 2\n-1 2 7\n0 0\n0 2\n",
+      "expectedOutput": "-1\n8",
+      "hidden": false
+    },
+    {
+      "input": "1 1\n42\n0 0\n",
+      "expectedOutput": "42",
+      "hidden": true
+    },
+    {
+      "input": "4 2\n5 -2 3 1\n1 2\n0 3\n",
+      "expectedOutput": "1\n7",
+      "hidden": true
+    }
+  ],
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int q = scanner.nextInt();\n        long[] prefix = new long[n + 1];\n        for (int i = 0; i < n; i++) {\n            prefix[i + 1] = prefix[i] + scanner.nextLong();\n        }\n\n        StringBuilder output = new StringBuilder();\n        for (int i = 0; i < q; i++) {\n            int left = scanner.nextInt();\n            int right = scanner.nextInt();\n            output.append(prefix[right + 1] - prefix[left]).append('\\n');\n        }\n\n        System.out.print(output);\n    }\n}"
+}

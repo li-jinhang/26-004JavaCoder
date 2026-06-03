@@ -13,6 +13,7 @@ public record ProblemDetail(
         String constraints,
         String starterCode,
         List<ExampleCase> examples,
+        String referenceSolution,
         int visibleCaseCount,
         int totalCaseCount
 ) {
@@ -28,6 +29,7 @@ public record ProblemDetail(
                 problem.constraints(),
                 problem.starterCode(),
                 problem.examples(),
+                problem.referenceSolution(),
                 problem.visibleCaseCount(),
                 problem.totalCaseCount()
         );

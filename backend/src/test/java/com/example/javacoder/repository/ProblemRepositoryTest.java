@@ -19,4 +19,13 @@ class ProblemRepositoryTest {
                                 .toList()
                 );
     }
+
+    @Test
+    void loadsReferenceSolutionsFromResources() {
+        ProblemRepository repository = new ProblemRepository();
+
+        assertThat(repository.findAll())
+                .allSatisfy(problem -> assertThat(problem.referenceSolution())
+                        .contains("public class Main"));
+    }
 }

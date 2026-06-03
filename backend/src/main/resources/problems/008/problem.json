@@ -1,0 +1,49 @@
+{
+  "id": 8,
+  "title": "买卖股票最佳时机",
+  "difficulty": "简单",
+  "tags": [
+    "数组",
+    "贪心"
+  ],
+  "description": "给定每天的股票价格，只能先买入一次再卖出一次，输出可以获得的最大利润。",
+  "inputFormat": "第一行包含 n。第二行包含 n 个价格。",
+  "outputFormat": "输出最大利润；如果无法获利，输出 0。",
+  "constraints": "1 <= n <= 100000, 0 <= prices[i] <= 100000",
+  "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = scanner.nextInt();\n        }\n\n// TODO: 输出一次买卖可获得的最大利润\n        System.out.println(0);\n    }\n}\n",
+  "examples": [
+    {
+      "input": "6\n7 1 5 3 6 4\n",
+      "output": "5",
+      "explanation": "第 2 天买入，第 5 天卖出。"
+    },
+    {
+      "input": "5\n7 6 4 3 1\n",
+      "output": "0",
+      "explanation": "价格持续下降，无法获利。"
+    }
+  ],
+  "testCases": [
+    {
+      "input": "6\n7 1 5 3 6 4\n",
+      "expectedOutput": "5",
+      "hidden": false
+    },
+    {
+      "input": "5\n7 6 4 3 1\n",
+      "expectedOutput": "0",
+      "hidden": false
+    },
+    {
+      "input": "2\n1 2\n",
+      "expectedOutput": "1",
+      "hidden": true
+    },
+    {
+      "input": "6\n2 4 1 7 5 9\n",
+      "expectedOutput": "8",
+      "hidden": true
+    }
+  ],
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int minPrice = Integer.MAX_VALUE;\n        int bestProfit = 0;\n\n        for (int i = 0; i < n; i++) {\n            int price = scanner.nextInt();\n            minPrice = Math.min(minPrice, price);\n            bestProfit = Math.max(bestProfit, price - minPrice);\n        }\n\n        System.out.println(bestProfit);\n    }\n}"
+}

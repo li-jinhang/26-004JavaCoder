@@ -1,0 +1,49 @@
+{
+  "id": 3,
+  "title": "最长递增子序列",
+  "difficulty": "中等",
+  "tags": [
+    "动态规划",
+    "二分查找"
+  ],
+  "description": "给定一个整数数组 nums，请返回其中最长严格递增子序列的长度。",
+  "inputFormat": "第一行包含 n。第二行包含 n 个整数。",
+  "outputFormat": "输出一个整数，表示最长递增子序列的长度。",
+  "constraints": "1 <= n <= 2500, -10000 <= nums[i] <= 10000",
+  "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = scanner.nextInt();\n        }\n\n        // TODO: 输出最长递增子序列长度\n        System.out.println(0);\n    }\n}\n",
+  "examples": [
+    {
+      "input": "8\n10 9 2 5 3 7 101 18\n",
+      "output": "4",
+      "explanation": "其中一个最长递增子序列是 2, 3, 7, 101。"
+    },
+    {
+      "input": "6\n0 1 0 3 2 3\n",
+      "output": "4",
+      "explanation": "其中一个最长递增子序列是 0, 1, 2, 3。"
+    }
+  ],
+  "testCases": [
+    {
+      "input": "8\n10 9 2 5 3 7 101 18\n",
+      "expectedOutput": "4",
+      "hidden": false
+    },
+    {
+      "input": "6\n0 1 0 3 2 3\n",
+      "expectedOutput": "4",
+      "hidden": false
+    },
+    {
+      "input": "7\n7 7 7 7 7 7 7\n",
+      "expectedOutput": "1",
+      "hidden": true
+    },
+    {
+      "input": "9\n4 10 4 3 8 9 11 2 12\n",
+      "expectedOutput": "5",
+      "hidden": true
+    }
+  ],
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = scanner.nextInt();\n        }\n\n        int[] tails = new int[n];\n        int length = 0;\n        for (int num : nums) {\n            int left = 0;\n            int right = length;\n            while (left < right) {\n                int mid = left + (right - left) / 2;\n                if (tails[mid] < num) {\n                    left = mid + 1;\n                } else {\n                    right = mid;\n                }\n            }\n            tails[left] = num;\n            if (left == length) {\n                length++;\n            }\n        }\n\n        System.out.println(length);\n    }\n}"
+}

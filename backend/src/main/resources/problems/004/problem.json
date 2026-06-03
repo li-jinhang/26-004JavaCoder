@@ -1,0 +1,49 @@
+{
+  "id": 4,
+  "title": "最大子数组和",
+  "difficulty": "简单",
+  "tags": [
+    "数组",
+    "动态规划"
+  ],
+  "description": "给定整数数组 nums，找到一个连续子数组，使其元素和最大，并输出最大和。",
+  "inputFormat": "第一行包含 n。第二行包含 n 个整数。",
+  "outputFormat": "输出最大连续子数组和。",
+  "constraints": "1 <= n <= 100000, -100000 <= nums[i] <= 100000",
+  "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = scanner.nextInt();\n        }\n\n// TODO: 计算最大连续子数组和\n        System.out.println(0);\n    }\n}\n",
+  "examples": [
+    {
+      "input": "9\n-2 1 -3 4 -1 2 1 -5 4\n",
+      "output": "6",
+      "explanation": "连续子数组 4, -1, 2, 1 的和最大。"
+    },
+    {
+      "input": "5\n5 4 -1 7 8\n",
+      "output": "23",
+      "explanation": "整个数组的和最大。"
+    }
+  ],
+  "testCases": [
+    {
+      "input": "9\n-2 1 -3 4 -1 2 1 -5 4\n",
+      "expectedOutput": "6",
+      "hidden": false
+    },
+    {
+      "input": "5\n5 4 -1 7 8\n",
+      "expectedOutput": "23",
+      "hidden": false
+    },
+    {
+      "input": "1\n-5\n",
+      "expectedOutput": "-5",
+      "hidden": true
+    },
+    {
+      "input": "4\n-1 -2 -3 -4\n",
+      "expectedOutput": "-1",
+      "hidden": true
+    }
+  ],
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        long best = Long.MIN_VALUE;\n        long current = 0;\n\n        for (int i = 0; i < n; i++) {\n            int num = scanner.nextInt();\n            current = Math.max(num, current + num);\n            best = Math.max(best, current);\n        }\n\n        System.out.println(best);\n    }\n}"
+}

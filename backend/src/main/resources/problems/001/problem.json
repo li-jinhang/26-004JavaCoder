@@ -1,0 +1,49 @@
+{
+  "id": 1,
+  "title": "两数之和",
+  "difficulty": "简单",
+  "tags": [
+    "数组",
+    "哈希表"
+  ],
+  "description": "给定一个整数数组 nums 和一个整数 target，请返回两个下标，使这两个下标对应的数之和等于 target。每组输入保证恰好存在一个答案。",
+  "inputFormat": "第一行包含 n 和 target。第二行包含 n 个整数。",
+  "outputFormat": "按升序输出两个下标，中间用一个空格分隔。",
+  "constraints": "2 <= n <= 10000, -1000000000 <= nums[i], target <= 1000000000",
+  "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int target = scanner.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = scanner.nextInt();\n        }\n\n        // TODO: 输出两个下标，例如 System.out.println(i + \" \" + j);\n    }\n}\n",
+  "examples": [
+    {
+      "input": "4 9\n2 7 11 15\n",
+      "output": "0 1",
+      "explanation": "nums[0] + nums[1] = 9"
+    },
+    {
+      "input": "3 6\n3 2 4\n",
+      "output": "1 2",
+      "explanation": "nums[1] + nums[2] = 6"
+    }
+  ],
+  "testCases": [
+    {
+      "input": "4 9\n2 7 11 15\n",
+      "expectedOutput": "0 1",
+      "hidden": false
+    },
+    {
+      "input": "3 6\n3 2 4\n",
+      "expectedOutput": "1 2",
+      "hidden": false
+    },
+    {
+      "input": "2 6\n3 3\n",
+      "expectedOutput": "0 1",
+      "hidden": true
+    },
+    {
+      "input": "5 10\n1 8 3 7 5\n",
+      "expectedOutput": "2 3",
+      "hidden": true
+    }
+  ],
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int target = scanner.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = scanner.nextInt();\n        }\n\n        Map<Integer, Integer> seen = new HashMap<>();\n        for (int i = 0; i < n; i++) {\n            int need = target - nums[i];\n            if (seen.containsKey(need)) {\n                System.out.println(seen.get(need) + \" \" + i);\n                return;\n            }\n            seen.put(nums[i], i);\n        }\n    }\n}"
+}

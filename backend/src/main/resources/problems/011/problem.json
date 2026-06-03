@@ -1,0 +1,49 @@
+{
+  "id": 11,
+  "title": "最长无重复子串",
+  "difficulty": "中等",
+  "tags": [
+    "字符串",
+    "滑动窗口"
+  ],
+  "description": "给定字符串 s，输出不含重复字符的最长连续子串长度。",
+  "inputFormat": "一行字符串 s。",
+  "outputFormat": "输出最长长度。",
+  "constraints": "0 <= s.length <= 50000",
+  "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String s = scanner.nextLine();\n\n// TODO: 输出最长无重复子串长度\n        System.out.println(0);\n    }\n}\n",
+  "examples": [
+    {
+      "input": "abcabcbb\n",
+      "output": "3",
+      "explanation": "最长子串为 abc。"
+    },
+    {
+      "input": "bbbbb\n",
+      "output": "1",
+      "explanation": "最长子串为 b。"
+    }
+  ],
+  "testCases": [
+    {
+      "input": "abcabcbb\n",
+      "expectedOutput": "3",
+      "hidden": false
+    },
+    {
+      "input": "bbbbb\n",
+      "expectedOutput": "1",
+      "hidden": false
+    },
+    {
+      "input": "pwwkew\n",
+      "expectedOutput": "3",
+      "hidden": true
+    },
+    {
+      "input": "dvdf\n",
+      "expectedOutput": "3",
+      "hidden": true
+    }
+  ],
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String s = scanner.hasNextLine() ? scanner.nextLine() : \"\";\n        Map<Character, Integer> lastIndex = new HashMap<>();\n        int left = 0;\n        int best = 0;\n\n        for (int right = 0; right < s.length(); right++) {\n            char ch = s.charAt(right);\n            if (lastIndex.containsKey(ch)) {\n                left = Math.max(left, lastIndex.get(ch) + 1);\n            }\n            lastIndex.put(ch, right);\n            best = Math.max(best, right - left + 1);\n        }\n\n        System.out.println(best);\n    }\n}"
+}

@@ -1,0 +1,49 @@
+{
+  "id": 19,
+  "title": "编辑距离",
+  "difficulty": "困难",
+  "tags": [
+    "字符串",
+    "动态规划"
+  ],
+  "description": "给定两个单词 word1 和 word2，计算将 word1 转换成 word2 所需的最少操作数。允许插入、删除、替换一个字符。",
+  "inputFormat": "第一行是 word1。第二行是 word2。",
+  "outputFormat": "输出最少操作数。",
+  "constraints": "0 <= word1.length, word2.length <= 500",
+  "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String word1 = scanner.nextLine();\n        String word2 = scanner.nextLine();\n\n        // TODO: 输出编辑距离\n        System.out.println(0);\n    }\n}\n",
+  "examples": [
+    {
+      "input": "horse\nros\n",
+      "output": "3",
+      "explanation": "horse -> rorse -> rose -> ros。"
+    },
+    {
+      "input": "intention\nexecution\n",
+      "output": "5",
+      "explanation": "最少需要 5 次操作。"
+    }
+  ],
+  "testCases": [
+    {
+      "input": "horse\nros\n",
+      "expectedOutput": "3",
+      "hidden": false
+    },
+    {
+      "input": "intention\nexecution\n",
+      "expectedOutput": "5",
+      "hidden": false
+    },
+    {
+      "input": "a\n\n",
+      "expectedOutput": "1",
+      "hidden": true
+    },
+    {
+      "input": "kitten\nsitting\n",
+      "expectedOutput": "3",
+      "hidden": true
+    }
+  ],
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String word1 = scanner.hasNextLine() ? scanner.nextLine() : \"\";\n        String word2 = scanner.hasNextLine() ? scanner.nextLine() : \"\";\n        int[] previous = new int[word2.length() + 1];\n\n        for (int j = 0; j <= word2.length(); j++) {\n            previous[j] = j;\n        }\n\n        for (int i = 1; i <= word1.length(); i++) {\n            int[] current = new int[word2.length() + 1];\n            current[0] = i;\n            for (int j = 1; j <= word2.length(); j++) {\n                if (word1.charAt(i - 1) == word2.charAt(j - 1)) {\n                    current[j] = previous[j - 1];\n                } else {\n                    current[j] = 1 + Math.min(previous[j - 1], Math.min(previous[j], current[j - 1]));\n                }\n            }\n            previous = current;\n        }\n\n        System.out.println(previous[word2.length()]);\n    }\n}"
+}

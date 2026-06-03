@@ -1,0 +1,49 @@
+{
+  "id": 17,
+  "title": "课程表",
+  "difficulty": "中等",
+  "tags": [
+    "图",
+    "拓扑排序"
+  ],
+  "description": "有 n 门课程和若干先修关系。每个关系 a b 表示想学习课程 a，必须先学习课程 b。判断是否可以完成所有课程。",
+  "inputFormat": "第一行包含 n 和 m。接下来 m 行每行包含 a 和 b。",
+  "outputFormat": "如果可以完成全部课程，输出 true；否则输出 false。",
+  "constraints": "1 <= n <= 100000, 0 <= m <= 200000",
+  "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int m = scanner.nextInt();\n\n        // TODO: 建图并判断是否存在环\n        System.out.println(false);\n    }\n}\n",
+  "examples": [
+    {
+      "input": "2 1\n1 0\n",
+      "output": "true",
+      "explanation": "先学 0 再学 1。"
+    },
+    {
+      "input": "2 2\n1 0\n0 1\n",
+      "output": "false",
+      "explanation": "两门课互相依赖，形成环。"
+    }
+  ],
+  "testCases": [
+    {
+      "input": "2 1\n1 0\n",
+      "expectedOutput": "true",
+      "hidden": false
+    },
+    {
+      "input": "2 2\n1 0\n0 1\n",
+      "expectedOutput": "false",
+      "hidden": false
+    },
+    {
+      "input": "4 3\n1 0\n2 1\n3 2\n",
+      "expectedOutput": "true",
+      "hidden": true
+    },
+    {
+      "input": "3 3\n0 1\n1 2\n2 0\n",
+      "expectedOutput": "false",
+      "hidden": true
+    }
+  ],
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int m = scanner.nextInt();\n        List<List<Integer>> graph = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            graph.add(new ArrayList<>());\n        }\n        int[] indegree = new int[n];\n\n        for (int i = 0; i < m; i++) {\n            int course = scanner.nextInt();\n            int prerequisite = scanner.nextInt();\n            graph.get(prerequisite).add(course);\n            indegree[course]++;\n        }\n\n        Deque<Integer> queue = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            if (indegree[i] == 0) {\n                queue.offer(i);\n            }\n        }\n\n        int learned = 0;\n        while (!queue.isEmpty()) {\n            int course = queue.poll();\n            learned++;\n            for (int next : graph.get(course)) {\n                indegree[next]--;\n                if (indegree[next] == 0) {\n                    queue.offer(next);\n                }\n            }\n        }\n\n        System.out.println(learned == n);\n    }\n}"
+}

@@ -1,0 +1,49 @@
+{
+  "id": 2,
+  "title": "有效的括号",
+  "difficulty": "简单",
+  "tags": [
+    "栈",
+    "字符串"
+  ],
+  "description": "给定一个只包含括号字符的字符串 s，判断它是否有效。左括号必须由相同类型的右括号闭合，并且闭合顺序必须正确。",
+  "inputFormat": "一行字符串 s。",
+  "outputFormat": "如果字符串有效，输出 true；否则输出 false。",
+  "constraints": "1 <= s.length <= 10000",
+  "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String s = scanner.nextLine();\n\n        // TODO: 判断括号字符串是否有效\n        System.out.println(false);\n    }\n}\n",
+  "examples": [
+    {
+      "input": "()[]{}\n",
+      "output": "true",
+      "explanation": "每个左括号都由相同类型的右括号闭合。"
+    },
+    {
+      "input": "(]\n",
+      "output": "false",
+      "explanation": "括号类型不匹配。"
+    }
+  ],
+  "testCases": [
+    {
+      "input": "()[]{}\n",
+      "expectedOutput": "true",
+      "hidden": false
+    },
+    {
+      "input": "(]\n",
+      "expectedOutput": "false",
+      "hidden": false
+    },
+    {
+      "input": "([{}])\n",
+      "expectedOutput": "true",
+      "hidden": true
+    },
+    {
+      "input": "(((()))\n",
+      "expectedOutput": "false",
+      "hidden": true
+    }
+  ],
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String s = scanner.nextLine();\n        Deque<Character> stack = new ArrayDeque<>();\n\n        for (char ch : s.toCharArray()) {\n            if (ch == '(' || ch == '[' || ch == '{') {\n                stack.push(ch);\n            } else {\n                if (stack.isEmpty()) {\n                    System.out.println(false);\n                    return;\n                }\n\n                char left = stack.pop();\n                if ((ch == ')' && left != '(')\n                        || (ch == ']' && left != '[')\n                        || (ch == '}' && left != '{')) {\n                    System.out.println(false);\n                    return;\n                }\n            }\n        }\n\n        System.out.println(stack.isEmpty());\n    }\n}"
+}

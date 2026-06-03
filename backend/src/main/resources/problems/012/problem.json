@@ -1,0 +1,49 @@
+{
+  "id": 12,
+  "title": "有效的字母异位词",
+  "difficulty": "简单",
+  "tags": [
+    "字符串",
+    "计数"
+  ],
+  "description": "给定两个仅包含小写字母的字符串 s 和 t，判断 t 是否是 s 的字母异位词。",
+  "inputFormat": "第一行是 s。第二行是 t。",
+  "outputFormat": "如果是字母异位词，输出 true；否则输出 false。",
+  "constraints": "1 <= s.length, t.length <= 50000",
+  "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String s = scanner.nextLine();\n        String t = scanner.nextLine();\n\n        // TODO: 判断两个字符串是否互为字母异位词\n        System.out.println(false);\n    }\n}\n",
+  "examples": [
+    {
+      "input": "anagram\nnagaram\n",
+      "output": "true",
+      "explanation": "两个字符串中每个字母出现次数相同。"
+    },
+    {
+      "input": "rat\ncar\n",
+      "output": "false",
+      "explanation": "字母计数不同。"
+    }
+  ],
+  "testCases": [
+    {
+      "input": "anagram\nnagaram\n",
+      "expectedOutput": "true",
+      "hidden": false
+    },
+    {
+      "input": "rat\ncar\n",
+      "expectedOutput": "false",
+      "hidden": false
+    },
+    {
+      "input": "a\nab\n",
+      "expectedOutput": "false",
+      "hidden": true
+    },
+    {
+      "input": "listen\nsilent\n",
+      "expectedOutput": "true",
+      "hidden": true
+    }
+  ],
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String s = scanner.nextLine();\n        String t = scanner.nextLine();\n\n        if (s.length() != t.length()) {\n            System.out.println(false);\n            return;\n        }\n\n        int[] counts = new int[26];\n        for (int i = 0; i < s.length(); i++) {\n            counts[s.charAt(i) - 'a']++;\n            counts[t.charAt(i) - 'a']--;\n        }\n\n        for (int count : counts) {\n            if (count != 0) {\n                System.out.println(false);\n                return;\n            }\n        }\n\n        System.out.println(true);\n    }\n}"
+}

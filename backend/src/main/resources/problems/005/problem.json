@@ -1,0 +1,49 @@
+{
+  "id": 5,
+  "title": "二分查找",
+  "difficulty": "简单",
+  "tags": [
+    "数组",
+    "二分查找"
+  ],
+  "description": "给定升序整数数组 nums 和目标值 target，返回 target 的下标；如果不存在，返回 -1。",
+  "inputFormat": "第一行包含 n 和 target。第二行包含 n 个升序整数。",
+  "outputFormat": "输出 target 的下标或 -1。",
+  "constraints": "1 <= n <= 100000, -1000000000 <= nums[i], target <= 1000000000",
+  "starterCode": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int target = scanner.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = scanner.nextInt();\n        }\n\n        // TODO: 使用二分查找输出下标\n        System.out.println(-1);\n    }\n}\n",
+  "examples": [
+    {
+      "input": "5 9\n-1 0 3 5 9\n",
+      "output": "4",
+      "explanation": "9 位于下标 4。"
+    },
+    {
+      "input": "6 2\n-1 0 3 5 9 12\n",
+      "output": "-1",
+      "explanation": "数组中不存在 2。"
+    }
+  ],
+  "testCases": [
+    {
+      "input": "5 9\n-1 0 3 5 9\n",
+      "expectedOutput": "4",
+      "hidden": false
+    },
+    {
+      "input": "6 2\n-1 0 3 5 9 12\n",
+      "expectedOutput": "-1",
+      "hidden": false
+    },
+    {
+      "input": "1 7\n7\n",
+      "expectedOutput": "0",
+      "hidden": true
+    },
+    {
+      "input": "4 -3\n-5 -3 0 2\n",
+      "expectedOutput": "1",
+      "hidden": true
+    }
+  ],
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int target = scanner.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = scanner.nextInt();\n        }\n\n        int left = 0;\n        int right = n - 1;\n        while (left <= right) {\n            int mid = left + (right - left) / 2;\n            if (nums[mid] == target) {\n                System.out.println(mid);\n                return;\n            }\n            if (nums[mid] < target) {\n                left = mid + 1;\n            } else {\n                right = mid - 1;\n            }\n        }\n\n        System.out.println(-1);\n    }\n}"
+}
