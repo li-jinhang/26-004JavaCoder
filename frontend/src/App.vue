@@ -7,18 +7,38 @@
           <h1>选择一道题，进入代码编辑界面</h1>
           <p class="home-subtitle">从题库开始练习 Java 17，提交后立即查看编译与用例结果。</p>
         </div>
-        <div class="home-stats" aria-label="题库统计">
-          <div>
-            <strong>{{ problems.length }}</strong>
-            <span>题目</span>
+        <div class="home-side">
+          <div class="account-bar">
+            <template v-if="currentUser">
+              <span class="avatar-mark">{{ currentUser.username.slice(0, 1).toUpperCase() }}</span>
+              <div>
+                <p>当前用户</p>
+                <strong>{{ currentUser.username }}</strong>
+              </div>
+              <button class="ghost-button compact-button" type="button" @click="logout">退出</button>
+            </template>
+            <template v-else>
+              <div>
+                <p>登录后提交代码</p>
+                <strong>保存你的练习记录</strong>
+              </div>
+              <button class="primary-button compact-button" type="button" @click="openAuthDialog('login')">登录</button>
+              <button class="ghost-button compact-button" type="button" @click="openAuthDialog('register')">注册</button>
+            </template>
           </div>
-          <div>
-            <strong>{{ acceptedProblemCount }}</strong>
-            <span>已通过</span>
-          </div>
-          <div>
-            <strong>{{ submissions.length }}</strong>
-            <span>提交</span>
+          <div class="home-stats" aria-label="题库统计">
+            <div>
+              <strong>{{ problems.length }}</strong>
+              <span>题目</span>
+            </div>
+            <div>
+              <strong>{{ acceptedProblemCount }}</strong>
+              <span>已通过</span>
+            </div>
+            <div>
+              <strong>{{ submissions.length }}</strong>
+              <span>提交</span>
+            </div>
           </div>
         </div>
       </header>
@@ -78,9 +98,22 @@
           <p class="eyebrow">题目 {{ selectedProblem?.id }}</p>
           <h1>{{ selectedProblem?.title || '正在加载题目' }}</h1>
         </div>
-        <span v-if="selectedProblem" :class="['difficulty large', difficultyClass(selectedProblem.difficulty)]">
-          {{ displayDifficulty(selectedProblem.difficulty) }}
-        </span>
+        <div class="editor-actions">
+          <span v-if="selectedProblem" :class="['difficulty large', difficultyClass(selectedProblem.difficulty)]">
+            {{ displayDifficulty(selectedProblem.difficulty) }}
+          </span>
+          <div class="account-bar compact">
+            <template v-if="currentUser">
+              <span class="avatar-mark">{{ currentUser.username.slice(0, 1).toUpperCase() }}</span>
+              <strong>{{ currentUser.username }}</strong>
+              <button class="ghost-button compact-button" type="button" @click="logout">退出</button>
+            </template>
+            <template v-else>
+              <button class="primary-button compact-button" type="button" @click="openAuthDialog('login')">登录</button>
+              <button class="ghost-button compact-button" type="button" @click="openAuthDialog('register')">注册</button>
+            </template>
+          </div>
+        </div>
       </header>
 
       <div v-if="loadingProblem" class="loading-panel">正在加载题目...</div>
@@ -125,7 +158,7 @@
               </button>
               <button class="ghost-button" type="button" :disabled="!selectedProblem" @click="resetCode">重置</button>
               <button class="primary-button" type="button" :disabled="submitting || !selectedProblem" @click="submitCode">
-                {{ submitting ? '评测中...' : '提交' }}
+                {{ submitting ? '评测中...' : currentUser ? '提交' : '登录后提交' }}
               </button>
             </div>
           </div>
@@ -191,6 +224,63 @@
         </footer>
       </section>
     </div>
+
+    <div v-if="showAuthDialog" class="modal-backdrop" role="presentation" @click.self="closeAuthDialog">
+      <section class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+        <header class="auth-header">
+          <div>
+            <p class="eyebrow">Account</p>
+            <h2 id="auth-title">{{ authMode === 'login' ? '登录 JavaCoder' : '注册新账号' }}</h2>
+          </div>
+          <button class="ghost-button icon-button" type="button" aria-label="关闭登录注册窗口" @click="closeAuthDialog">
+            ×
+          </button>
+        </header>
+
+        <div class="auth-tabs" role="tablist" aria-label="登录注册切换">
+          <button
+            :class="{ active: authMode === 'login' }"
+            type="button"
+            role="tab"
+            :aria-selected="authMode === 'login'"
+            @click="switchAuthMode('login')"
+          >
+            登录
+          </button>
+          <button
+            :class="{ active: authMode === 'register' }"
+            type="button"
+            role="tab"
+            :aria-selected="authMode === 'register'"
+            @click="switchAuthMode('register')"
+          >
+            注册
+          </button>
+        </div>
+
+        <form class="auth-form" @submit.prevent="submitAuth">
+          <label>
+            <span>用户名</span>
+            <input v-model.trim="authForm.username" autocomplete="username" maxlength="20" required />
+          </label>
+          <label>
+            <span>密码</span>
+            <input
+              v-model="authForm.password"
+              :autocomplete="authMode === 'login' ? 'current-password' : 'new-password'"
+              minlength="6"
+              maxlength="64"
+              type="password"
+              required
+            />
+          </label>
+          <div v-if="authMessage" class="auth-message">{{ authMessage }}</div>
+          <button class="primary-button" type="submit" :disabled="authenticating">
+            {{ authenticating ? '处理中...' : authMode === 'login' ? '登录' : '创建账号' }}
+          </button>
+        </form>
+      </section>
+    </div>
   </main>
 </template>
 
@@ -209,6 +299,17 @@ const submitting = ref(false)
 const errorMessage = ref('')
 const showSolutionDialog = ref(false)
 const copiedSolution = ref(false)
+const currentUser = ref(null)
+const authToken = ref(localStorage.getItem('javacoder-auth-token') || '')
+const showAuthDialog = ref(false)
+const authMode = ref('login')
+const authForm = ref({
+  username: '',
+  password: ''
+})
+const authMessage = ref('')
+const authenticating = ref(false)
+const pendingAuthAction = ref(null)
 
 const activeProblemId = computed(() => selectedProblem.value?.id)
 const acceptedProblemCount = computed(() => problems.value.filter((problem) => problem.acceptedCount > 0).length)
@@ -304,6 +405,7 @@ public class Main {
 }
 
 onMounted(async () => {
+  await restoreSession()
   await Promise.all([loadProblems(), loadSubmissions()])
 
   const hashProblemId = parseProblemIdFromHash()
@@ -332,6 +434,22 @@ async function loadSubmissions() {
     submissions.value = await requestJson('/api/submissions')
   } catch (error) {
     errorMessage.value = error.message
+  }
+}
+
+async function restoreSession() {
+  if (!authToken.value) {
+    return
+  }
+
+  try {
+    currentUser.value = await requestJson('/api/auth/me', {
+      headers: authHeaders()
+    })
+  } catch (error) {
+    authToken.value = ''
+    currentUser.value = null
+    localStorage.removeItem('javacoder-auth-token')
   }
 }
 
@@ -422,12 +540,16 @@ async function submitCode() {
     return
   }
 
+  if (!requireLogin(() => submitCode(), '请先登录，登录后即可提交代码。')) {
+    return
+  }
+
   submitting.value = true
   errorMessage.value = ''
   try {
     latestResult.value = await requestJson('/api/submissions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         problemId: activeProblemId.value,
         language: 'java',
@@ -440,6 +562,86 @@ async function submitCode() {
   } finally {
     submitting.value = false
   }
+}
+
+function openAuthDialog(mode = 'login') {
+  authMode.value = mode
+  authMessage.value = ''
+  showAuthDialog.value = true
+}
+
+function closeAuthDialog() {
+  showAuthDialog.value = false
+  authMessage.value = ''
+  authForm.value.password = ''
+  pendingAuthAction.value = null
+}
+
+function switchAuthMode(mode) {
+  authMode.value = mode
+  authMessage.value = ''
+  authForm.value.password = ''
+}
+
+async function submitAuth() {
+  authenticating.value = true
+  authMessage.value = ''
+  errorMessage.value = ''
+  let actionToRun = null
+
+  try {
+    const authResult = await requestJson(`/api/auth/${authMode.value}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(authForm.value)
+    })
+
+    authToken.value = authResult.token
+    currentUser.value = authResult.user
+    localStorage.setItem('javacoder-auth-token', authResult.token)
+    actionToRun = pendingAuthAction.value
+    pendingAuthAction.value = null
+    closeAuthDialog()
+  } catch (error) {
+    authMessage.value = error.message
+  } finally {
+    authenticating.value = false
+  }
+
+  if (actionToRun) {
+    await actionToRun()
+  }
+}
+
+async function logout() {
+  const token = authToken.value
+  authToken.value = ''
+  currentUser.value = null
+  pendingAuthAction.value = null
+  localStorage.removeItem('javacoder-auth-token')
+  authForm.value.password = ''
+
+  if (token) {
+    await requestJson('/api/auth/logout', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    }).catch(() => null)
+  }
+}
+
+function authHeaders() {
+  return authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {}
+}
+
+function requireLogin(action, message = '请先登录后再继续。') {
+  if (currentUser.value) {
+    return true
+  }
+
+  pendingAuthAction.value = action
+  openAuthDialog('login')
+  authMessage.value = message
+  return false
 }
 
 async function requestJson(url, options) {
@@ -514,7 +716,8 @@ function formatTime(value) {
 }
 
 button,
-textarea {
+textarea,
+input {
   font: inherit;
 }
 
@@ -597,13 +800,68 @@ button {
 }
 
 .home-stats {
-  min-width: 330px;
   border: 1px solid rgba(32, 35, 38, 0.14);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.58);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   overflow: hidden;
+}
+
+.home-side {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 14px;
+}
+
+.account-bar {
+  min-height: 72px;
+  border: 1px solid rgba(32, 35, 38, 0.14);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 253, 247, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.account-bar > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-bar p,
+.account-bar strong {
+  margin: 0;
+}
+
+.account-bar p {
+  color: #6f7774;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.account-bar strong {
+  color: #202326;
+}
+
+.account-bar.compact {
+  min-height: 44px;
+  padding: 7px;
+  background: rgba(255, 253, 247, 0.64);
+}
+
+.avatar-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #202326;
+  color: #fff8ea;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  font-weight: 900;
 }
 
 .home-stats div {
@@ -789,6 +1047,12 @@ button {
   flex: 1;
 }
 
+.editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .workbench {
   align-items: stretch;
   max-width: 1360px;
@@ -890,6 +1154,12 @@ pre {
   cursor: pointer;
 }
 
+.compact-button {
+  min-height: 34px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
 .ghost-button {
   border: 1px solid #b9ad9d;
   background: transparent;
@@ -985,18 +1255,94 @@ button:disabled {
   gap: 16px;
 }
 
+.auth-dialog {
+  width: min(430px, 100%);
+  border: 1px solid rgba(32, 35, 38, 0.14);
+  border-radius: 8px;
+  padding: 20px;
+  background: #fffdf7;
+  box-shadow: 0 34px 90px rgba(8, 10, 10, 0.34);
+  display: grid;
+  gap: 16px;
+}
+
 .solution-header,
-.solution-actions {
+.solution-actions,
+.auth-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
 
-.solution-header h2 {
+.solution-header h2,
+.auth-header h2 {
   margin: 0;
   font-size: 24px;
   letter-spacing: 0;
+}
+
+.auth-tabs {
+  border: 1px solid #d6cabb;
+  border-radius: 8px;
+  padding: 4px;
+  background: #f3eadc;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+
+.auth-tabs button {
+  min-height: 36px;
+  border-radius: 6px;
+  background: transparent;
+  color: #59625f;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.auth-tabs button.active {
+  background: #202326;
+  color: #fff8ea;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 7px;
+  color: #59625f;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.auth-form input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #b9ad9d;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fffaf0;
+  color: #202326;
+  outline: none;
+}
+
+.auth-form input:focus {
+  border-color: #a94f2f;
+  box-shadow: 0 0 0 3px rgba(169, 79, 47, 0.18);
+}
+
+.auth-message {
+  border: 1px solid #e6a79e;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff1ef;
+  color: #972a1f;
+  font-weight: 900;
+  line-height: 1.5;
 }
 
 .solution-code {
@@ -1039,6 +1385,7 @@ button:disabled {
   }
 
   .home-stats,
+  .home-side,
   .activity-panel,
   .problem-pane,
   .judge-pane {
@@ -1066,6 +1413,18 @@ button:disabled {
   .editor-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .editor-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .account-bar {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .home-stats,
