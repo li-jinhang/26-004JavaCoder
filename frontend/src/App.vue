@@ -310,6 +310,7 @@ const authForm = ref({
 const authMessage = ref('')
 const authenticating = ref(false)
 const pendingAuthAction = ref(null)
+let submissionPollTimer = null
 
 const activeProblemId = computed(() => selectedProblem.value?.id)
 const acceptedProblemCount = computed(() => problems.value.filter((problem) => problem.acceptedCount > 0).length)
@@ -557,11 +558,46 @@ async function submitCode() {
       })
     })
     await Promise.all([loadProblems(), loadSubmissions()])
+    await pollSubmission(latestResult.value.id)
   } catch (error) {
     errorMessage.value = error.message
   } finally {
     submitting.value = false
   }
+}
+
+async function pollSubmission(submissionId) {
+  clearSubmissionPoll()
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const result = await requestJson(`/api/submissions/${submissionId}`)
+    latestResult.value = result
+    await loadSubmissions()
+
+    if (!isPendingStatus(result.status)) {
+      await loadProblems()
+      return
+    }
+
+    await delay(1000)
+  }
+  errorMessage.value = '评测仍在进行中，请稍后刷新提交记录查看结果。'
+}
+
+function clearSubmissionPoll() {
+  if (submissionPollTimer) {
+    clearTimeout(submissionPollTimer)
+    submissionPollTimer = null
+  }
+}
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    submissionPollTimer = setTimeout(resolve, ms)
+  })
+}
+
+function isPendingStatus(status) {
+  return ['Pending', 'Judging'].includes(status)
 }
 
 function openAuthDialog(mode = 'login') {
@@ -665,8 +701,9 @@ function statusClass(status) {
   return {
     accepted: ['Accepted', '通过'].includes(status),
     wrong: ['Wrong Answer', '答案错误'].includes(status),
-    error: ['Compile Error', 'Runtime Error', 'Judge Error', 'Unsupported Language', '编译错误', '运行错误', '评测错误', '不支持的语言'].includes(status),
-    timeout: ['Time Limit Exceeded', 'Compile Timeout', '运行超时', '编译超时'].includes(status)
+    error: ['Compile Error', 'Runtime Error', 'Judge Error', 'Unsupported Language', 'Source Limit Exceeded', 'Memory Limit Exceeded', 'Output Limit Exceeded', '编译错误', '运行错误', '评测错误', '不支持的语言', '源码超限', '内存超限', '输出超限'].includes(status),
+    timeout: ['Time Limit Exceeded', 'Compile Timeout', '运行超时', '编译超时'].includes(status),
+    pending: ['Pending', 'Judging', '等待评测', '评测中'].includes(status)
   }
 }
 
@@ -687,7 +724,12 @@ function displayStatus(status) {
     'Judge Error': '评测错误',
     'Unsupported Language': '不支持的语言',
     'Time Limit Exceeded': '运行超时',
-    'Compile Timeout': '编译超时'
+    'Compile Timeout': '编译超时',
+    'Source Limit Exceeded': '源码超限',
+    'Memory Limit Exceeded': '内存超限',
+    'Output Limit Exceeded': '输出超限',
+    Pending: '等待评测',
+    Judging: '评测中'
   }[status] || status
 }
 
@@ -959,7 +1001,8 @@ button {
 }
 
 .medium,
-.timeout {
+.timeout,
+.pending {
   background: #ffe2a8;
   color: #84500f;
 }

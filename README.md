@@ -212,3 +212,44 @@ server {
 - 将判题逻辑拆分为独立 worker 服务
 - 增加 Docker Compose 一键启动环境
 - 补充后端单元测试和前后端集成测试
+
+## Sandbox runner
+
+The judge now runs submitted Java code through a `SandboxRunner` boundary. The default mode is Docker, configured in `backend/src/main/resources/application.yml`.
+
+Build the Java 17 sandbox image before starting the backend in Docker mode:
+
+```bash
+docker build -f backend/Dockerfile.sandbox-java17 -t javacoder-java17-sandbox:latest backend
+```
+
+Default sandbox restrictions:
+
+- no network access
+- dropped Linux capabilities
+- `no-new-privileges`
+- read-only container root filesystem
+- writable `/workspace` only for submitted source and class files
+- tmpfs `/tmp` with `noexec,nosuid`
+- CPU, memory, process count, source size, output size, compile timeout, and run timeout limits
+
+For local development on a machine without Docker, switch to the local runner:
+
+```yaml
+judge:
+  sandbox:
+    mode: local
+```
+
+`local` mode still enforces timeout, source-size, and output-size checks, but it executes `javac` and `java` on the host and must not be used for untrusted public submissions.
+
+## Async judging API
+
+Submissions are now judged asynchronously:
+
+- `POST /api/submissions` returns `202 Accepted` with a `Pending` submission.
+- `GET /api/submissions/{id}` returns the current submission state.
+- The worker updates states from `Pending` to `Judging` to the final judge result.
+- The frontend polls the detail endpoint until the result is no longer pending.
+
+This keeps Docker sandbox execution out of the HTTP request path and makes the judge ready for a future external queue or standalone worker process.

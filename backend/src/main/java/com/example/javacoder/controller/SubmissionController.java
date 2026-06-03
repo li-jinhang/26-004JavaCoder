@@ -3,7 +3,7 @@ package com.example.javacoder.controller;
 import com.example.javacoder.model.Submission;
 import com.example.javacoder.model.SubmissionRequest;
 import com.example.javacoder.repository.ProblemRepository;
-import com.example.javacoder.service.JavaJudgeService;
+import com.example.javacoder.service.JudgeWorker;
 import com.example.javacoder.service.SubmissionStore;
 import com.example.javacoder.service.UserStore;
 import java.util.List;
@@ -12,6 +12,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -23,18 +24,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class SubmissionController {
 
     private final ProblemRepository problemRepository;
-    private final JavaJudgeService javaJudgeService;
+    private final JudgeWorker judgeWorker;
     private final SubmissionStore submissionStore;
     private final UserStore userStore;
 
     public SubmissionController(
             ProblemRepository problemRepository,
-            JavaJudgeService javaJudgeService,
+            JudgeWorker judgeWorker,
             SubmissionStore submissionStore,
             UserStore userStore
     ) {
         this.problemRepository = problemRepository;
-        this.javaJudgeService = javaJudgeService;
+        this.judgeWorker = judgeWorker;
         this.submissionStore = submissionStore;
         this.userStore = userStore;
     }
@@ -42,6 +43,13 @@ public class SubmissionController {
     @GetMapping
     public List<Submission> listSubmissions() {
         return submissionStore.findRecent();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Submission> getSubmission(@PathVariable long id) {
+        return submissionStore.findById(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping
@@ -55,9 +63,8 @@ public class SubmissionController {
 
         return problemRepository.findById(request.problemId())
                 .<ResponseEntity<?>>map(problem -> {
-                    Submission submission = javaJudgeService.judge(problem, request);
-                    submissionStore.save(submission);
-                    return ResponseEntity.ok(submission);
+                    Submission submission = judgeWorker.enqueue(problem, request);
+                    return ResponseEntity.accepted().body(submission);
                 })
                 .orElseGet(() -> ResponseEntity.badRequest().body(Map.of("message", "题目不存在。")));
     }
