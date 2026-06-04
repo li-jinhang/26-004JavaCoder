@@ -17,6 +17,9 @@
               </div>
               <span v-if="isAdmin" class="role-badge">管理员</span>
               <button v-if="isAdmin" class="ghost-button compact-button" type="button" @click="openAdminPanel">用户管理</button>
+              <button v-if="!isAdmin" class="ghost-button compact-button" type="button" @click="openSocialPanel">
+                好友消息<span v-if="socialUnreadCount" class="inline-count">{{ socialUnreadCount }}</span>
+              </button>
               <button class="ghost-button compact-button" type="button" @click="logout">退出</button>
             </template>
             <template v-else>
@@ -145,6 +148,9 @@
               <span class="avatar-mark">{{ currentUser.username.slice(0, 1).toUpperCase() }}</span>
               <strong>{{ currentUser.username }}</strong>
               <span v-if="isAdmin" class="role-badge">管理员</span>
+              <button v-if="!isAdmin" class="ghost-button compact-button" type="button" @click="openSocialPanel">
+                好友消息<span v-if="socialUnreadCount" class="inline-count">{{ socialUnreadCount }}</span>
+              </button>
               <button class="ghost-button compact-button" type="button" @click="logout">退出</button>
             </template>
             <template v-else>
@@ -303,6 +309,8 @@
               <button class="ghost-button" type="button" :disabled="!currentSolution" @click="openSolutionDialog">
                 标准答案
               </button>
+              <button class="ghost-button" type="button" :disabled="!selectedProblem" @click="prepareProblemShare">分享题目</button>
+              <button class="ghost-button" type="button" :disabled="!selectedProblem" @click="prepareCodeShare">分享代码</button>
               <button class="ghost-button" type="button" :disabled="!selectedProblem" @click="resetCode">重置</button>
               <button class="primary-button" type="button" :disabled="submitting || !selectedProblem" @click="submitCode">
                 {{ submitting ? '评测中...' : currentUser ? '提交' : '登录后提交' }}
@@ -475,6 +483,143 @@
       </section>
     </div>
 
+    <div v-if="showSocialPanel && currentUser" class="modal-backdrop" role="presentation" @click.self="closeSocialPanel">
+      <section class="social-dialog" role="dialog" aria-modal="true" aria-labelledby="social-title">
+        <header class="solution-header">
+          <div>
+            <p class="eyebrow">Friends</p>
+            <h2 id="social-title">好友消息</h2>
+          </div>
+          <button class="ghost-button icon-button" type="button" aria-label="关闭好友消息" @click="closeSocialPanel">
+            X
+          </button>
+        </header>
+
+        <div v-if="socialMessage" class="auth-message">{{ socialMessage }}</div>
+
+        <div class="social-layout">
+          <aside class="social-sidebar">
+            <form class="social-search" @submit.prevent="searchSocialUsers">
+              <label class="search-box">
+                <span>用户</span>
+                <input
+                  v-model.trim="socialSearchQuery"
+                  type="search"
+                  placeholder="搜索用户名或 ID"
+                  autocomplete="off"
+                />
+              </label>
+              <button class="primary-button compact-button" type="submit" :disabled="socialLoadingUsers">
+                {{ socialLoadingUsers ? '搜索中...' : '搜索' }}
+              </button>
+            </form>
+
+            <div v-if="socialUsers.length" class="social-search-results">
+              <article v-for="user in socialUsers" :key="user.id" class="social-user-row">
+                <div>
+                  <strong>{{ user.username }}</strong>
+                  <p>ID {{ user.id }}</p>
+                </div>
+                <button
+                  class="ghost-button compact-button"
+                  type="button"
+                  :disabled="user.friend || user.currentUser"
+                  @click="addSocialFriend(user)"
+                >
+                  {{ user.currentUser ? '自己' : user.friend ? '已是好友' : '加好友' }}
+                </button>
+              </article>
+            </div>
+
+            <div class="section-heading social-heading">
+              <span>好友</span>
+              <strong>{{ socialFriends.length }}</strong>
+            </div>
+            <div v-if="socialLoadingFriends" class="loading-panel compact-panel">正在加载好友...</div>
+            <div v-else-if="socialFriends.length === 0" class="empty-state social-empty">搜索用户并添加好友后即可聊天。</div>
+            <button
+              v-for="friend in socialFriends"
+              :key="friend.id"
+              :class="['friend-row', { active: selectedFriendId === friend.id }]"
+              type="button"
+              @click="selectSocialFriend(friend)"
+            >
+              <span class="avatar-mark">{{ friend.username.slice(0, 1).toUpperCase() }}</span>
+              <span>
+                <strong>{{ friend.username }}</strong>
+                <small>{{ friend.lastMessage ? messagePreview(friend.lastMessage) : '还没有消息' }}</small>
+              </span>
+              <em v-if="friend.unreadCount">{{ friend.unreadCount }}</em>
+            </button>
+          </aside>
+
+          <section class="chat-panel">
+            <template v-if="selectedSocialFriend">
+              <header class="chat-head">
+                <div>
+                  <p class="eyebrow">Conversation</p>
+                  <strong>{{ selectedSocialFriend.username }}</strong>
+                </div>
+                <button class="ghost-button compact-button" type="button" @click="refreshSelectedConversation">刷新</button>
+              </header>
+
+              <div class="message-list">
+                <div v-if="socialLoadingMessages" class="loading-panel compact-panel">正在加载消息...</div>
+                <div v-else-if="socialMessages.length === 0" class="empty-state social-empty">发一条消息开始交流。</div>
+                <article
+                  v-for="message in socialMessages"
+                  :key="message.id"
+                  :class="['chat-message', { mine: isOwnMessage(message) }]"
+                >
+                  <div class="message-bubble">
+                    <span class="message-meta">
+                      {{ isOwnMessage(message) ? '我' : message.senderName }} · {{ formatTime(message.createdAt) }}
+                    </span>
+                    <strong v-if="message.type !== 'TEXT'" class="message-kind">{{ messageTitle(message) }}</strong>
+                    <p v-if="message.content">{{ message.content }}</p>
+                    <button
+                      v-if="message.type === 'PROBLEM' && message.problemId"
+                      class="share-card"
+                      type="button"
+                      @click="openProblem(message.problemId)"
+                    >
+                      <span>题目 {{ formatProblemNumber(message.problemId) }}</span>
+                      <strong>{{ message.problemTitle }}</strong>
+                    </button>
+                    <pre v-if="message.type === 'CODE' && message.code" class="shared-code">{{ message.code }}</pre>
+                  </div>
+                </article>
+              </div>
+
+              <form class="chat-composer" @submit.prevent="sendSocialMessage">
+                <div v-if="shareDraft.type !== 'TEXT'" class="share-draft">
+                  <div>
+                    <span>{{ shareDraft.type === 'PROBLEM' ? '将分享题目' : '将分享代码' }}</span>
+                    <strong>{{ shareDraft.problemTitle || selectedProblem?.title || '当前代码片段' }}</strong>
+                  </div>
+                  <button class="ghost-button compact-button" type="button" @click="clearShareDraft">取消</button>
+                </div>
+                <textarea
+                  v-model.trim="socialText"
+                  maxlength="2000"
+                  :placeholder="shareDraft.type === 'TEXT' ? '输入消息...' : '附加一句说明（可选）'"
+                  spellcheck="false"
+                />
+                <footer class="solution-actions">
+                  <button class="ghost-button" type="button" :disabled="!selectedProblem" @click="prepareProblemShare(false)">题目</button>
+                  <button class="ghost-button" type="button" :disabled="!selectedProblem" @click="prepareCodeShare(false)">代码</button>
+                  <button class="primary-button" type="submit" :disabled="socialSending">
+                    {{ socialSending ? '发送中...' : '发送' }}
+                  </button>
+                </footer>
+              </form>
+            </template>
+            <div v-else class="empty-state social-empty large">选择一个好友开始消息交流。</div>
+          </section>
+        </div>
+      </section>
+    </div>
+
     <div v-if="showAuthDialog" class="modal-backdrop" role="presentation" @click.self="closeAuthDialog">
       <section class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title">
         <header class="auth-header">
@@ -585,13 +730,34 @@ const adminUsers = ref([])
 const loadingAdminUsers = ref(false)
 const adminMessage = ref('')
 const deletingUserId = ref(null)
+const showSocialPanel = ref(false)
+const socialSearchQuery = ref('')
+const socialUsers = ref([])
+const socialFriends = ref([])
+const selectedFriendId = ref(null)
+const socialMessages = ref([])
+const socialText = ref('')
+const socialMessage = ref('')
+const socialLoadingUsers = ref(false)
+const socialLoadingFriends = ref(false)
+const socialLoadingMessages = ref(false)
+const socialSending = ref(false)
+const shareDraft = ref({
+  type: 'TEXT',
+  problemId: null,
+  problemTitle: '',
+  code: ''
+})
 let submissionPollTimer = null
+let socialPollTimer = null
 
 const difficultyOptions = ['全部', '简单', '中等', '困难']
 const activeProblemId = computed(() => selectedProblem.value?.id)
 const acceptedProblemCount = computed(() => problems.value.filter((problem) => problem.acceptedCount > 0).length)
 const currentSolution = computed(() => selectedProblem.value?.referenceSolution || '')
 const isAdmin = computed(() => currentUser.value?.role === 'ADMIN')
+const selectedSocialFriend = computed(() => socialFriends.value.find((friend) => friend.id === selectedFriendId.value) || null)
+const socialUnreadCount = computed(() => socialFriends.value.reduce((total, friend) => total + friend.unreadCount, 0))
 const workbenchStyle = computed(() => ({
   '--problem-pane-width': `${problemPaneWidth.value}%`
 }))
@@ -624,6 +790,9 @@ const filteredProblems = computed(() => {
 
 onMounted(async () => {
   await restoreSession()
+  if (currentUser.value && !isAdmin.value) {
+    await loadSocialFriends()
+  }
   await Promise.all([loadProblems(), loadSubmissions()])
 
   const hashProblemId = parseProblemIdFromHash()
@@ -637,6 +806,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   stopProblemPaneResize()
+  stopSocialPolling()
 })
 
 function startProblemPaneResize(event) {
@@ -792,6 +962,247 @@ async function deleteAdminUser(user) {
   } finally {
     deletingUserId.value = null
   }
+}
+
+async function openSocialPanel() {
+  if (!requireLogin(() => openSocialPanel(), '请先登录后再使用好友消息。')) {
+    return
+  }
+  if (isAdmin.value) {
+    return
+  }
+
+  showSocialPanel.value = true
+  socialMessage.value = ''
+  await loadSocialFriends()
+  if (!selectedFriendId.value && socialFriends.value.length > 0) {
+    await selectSocialFriend(socialFriends.value[0])
+  } else if (selectedFriendId.value) {
+    await loadSocialMessages()
+  }
+  startSocialPolling()
+}
+
+function closeSocialPanel() {
+  showSocialPanel.value = false
+  socialMessage.value = ''
+  stopSocialPolling()
+}
+
+async function loadSocialFriends() {
+  if (!currentUser.value || isAdmin.value) {
+    return
+  }
+
+  socialLoadingFriends.value = true
+  try {
+    socialFriends.value = await requestJson('/api/social/friends', {
+      headers: authHeaders()
+    })
+  } catch (error) {
+    socialMessage.value = error.message
+  } finally {
+    socialLoadingFriends.value = false
+  }
+}
+
+async function searchSocialUsers() {
+  if (!currentUser.value || isAdmin.value) {
+    return
+  }
+
+  socialLoadingUsers.value = true
+  socialMessage.value = ''
+  try {
+    const query = encodeURIComponent(socialSearchQuery.value.trim())
+    socialUsers.value = await requestJson(`/api/social/users?query=${query}`, {
+      headers: authHeaders()
+    })
+  } catch (error) {
+    socialMessage.value = error.message
+  } finally {
+    socialLoadingUsers.value = false
+  }
+}
+
+async function addSocialFriend(user) {
+  if (user.friend || user.currentUser) {
+    return
+  }
+
+  socialMessage.value = ''
+  try {
+    const friend = await requestJson(`/api/social/friends/${user.id}`, {
+      method: 'POST',
+      headers: authHeaders()
+    })
+    socialUsers.value = socialUsers.value.map((item) =>
+      item.id === user.id ? { ...item, friend: true } : item
+    )
+    if (!socialFriends.value.some((item) => item.id === friend.id)) {
+      socialFriends.value = [friend, ...socialFriends.value]
+    }
+    await selectSocialFriend(friend)
+  } catch (error) {
+    socialMessage.value = error.message
+  }
+}
+
+async function selectSocialFriend(friend) {
+  selectedFriendId.value = friend.id
+  socialMessages.value = []
+  await loadSocialMessages()
+}
+
+async function loadSocialMessages(afterLatest = false) {
+  if (!selectedFriendId.value) {
+    socialMessages.value = []
+    return
+  }
+
+  const afterId = afterLatest && socialMessages.value.length
+    ? socialMessages.value[socialMessages.value.length - 1].id
+    : 0
+  socialLoadingMessages.value = !afterLatest
+  try {
+    const messages = await requestJson(`/api/social/messages/${selectedFriendId.value}?afterId=${afterId}`, {
+      headers: authHeaders()
+    })
+    socialMessages.value = afterLatest ? [...socialMessages.value, ...messages] : messages
+    await loadSocialFriends()
+  } catch (error) {
+    socialMessage.value = error.message
+  } finally {
+    socialLoadingMessages.value = false
+  }
+}
+
+async function refreshSelectedConversation() {
+  await loadSocialMessages(false)
+}
+
+async function sendSocialMessage() {
+  if (!selectedFriendId.value) {
+    return
+  }
+
+  const text = socialText.value.trim()
+  if (shareDraft.value.type === 'TEXT' && !text) {
+    socialMessage.value = '请输入消息内容。'
+    return
+  }
+
+  socialSending.value = true
+  socialMessage.value = ''
+  try {
+    const payload = {
+      recipientId: selectedFriendId.value,
+      type: shareDraft.value.type,
+      content: text,
+      problemId: shareDraft.value.problemId,
+      problemTitle: shareDraft.value.problemTitle,
+      code: shareDraft.value.code
+    }
+    const message = await requestJson('/api/social/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(payload)
+    })
+    socialMessages.value = [...socialMessages.value, message]
+    socialText.value = ''
+    clearShareDraft()
+    await loadSocialFriends()
+  } catch (error) {
+    socialMessage.value = error.message
+  } finally {
+    socialSending.value = false
+  }
+}
+
+async function prepareProblemShare(openPanel = true) {
+  if (!selectedProblem.value) {
+    return
+  }
+  if (!requireLogin(() => prepareProblemShare(openPanel), '请先登录后再分享题目。')) {
+    return
+  }
+
+  shareDraft.value = {
+    type: 'PROBLEM',
+    problemId: selectedProblem.value.id,
+    problemTitle: selectedProblem.value.title,
+    code: ''
+  }
+  if (openPanel) {
+    await openSocialPanel()
+  }
+}
+
+async function prepareCodeShare(openPanel = true) {
+  if (!selectedProblem.value) {
+    return
+  }
+  if (!requireLogin(() => prepareCodeShare(openPanel), '请先登录后再分享代码。')) {
+    return
+  }
+
+  shareDraft.value = {
+    type: 'CODE',
+    problemId: selectedProblem.value.id,
+    problemTitle: selectedProblem.value.title,
+    code: code.value
+  }
+  if (openPanel) {
+    await openSocialPanel()
+  }
+}
+
+function clearShareDraft() {
+  shareDraft.value = {
+    type: 'TEXT',
+    problemId: null,
+    problemTitle: '',
+    code: ''
+  }
+}
+
+function startSocialPolling() {
+  stopSocialPolling()
+  socialPollTimer = window.setInterval(async () => {
+    if (!showSocialPanel.value || !currentUser.value) {
+      return
+    }
+    if (selectedFriendId.value) {
+      await loadSocialMessages(true)
+    } else {
+      await loadSocialFriends()
+    }
+  }, 3000)
+}
+
+function stopSocialPolling() {
+  if (socialPollTimer) {
+    window.clearInterval(socialPollTimer)
+    socialPollTimer = null
+  }
+}
+
+function isOwnMessage(message) {
+  return currentUser.value && message.senderId === currentUser.value.id
+}
+
+function messageTitle(message) {
+  return message.type === 'PROBLEM' ? '分享题目' : message.type === 'CODE' ? '分享代码' : '消息'
+}
+
+function messagePreview(message) {
+  if (message.type === 'PROBLEM') {
+    return `分享题目：${message.problemTitle}`
+  }
+  if (message.type === 'CODE') {
+    return `分享代码：${message.problemTitle || '代码片段'}`
+  }
+  return message.content
 }
 
 async function openProblem(problemId, updateHash = true) {
@@ -1107,6 +1518,8 @@ async function submitAuth() {
 
   if (shouldOpenAdminPanel) {
     await openAdminPanel()
+  } else if (currentUser.value) {
+    await loadSocialFriends()
   }
 
   if (actionToRun) {
@@ -1120,8 +1533,16 @@ async function logout() {
   currentUser.value = null
   pendingAuthAction.value = null
   showAdminPanel.value = false
+  showSocialPanel.value = false
   adminUsers.value = []
   adminMessage.value = ''
+  socialUsers.value = []
+  socialFriends.value = []
+  socialMessages.value = []
+  selectedFriendId.value = null
+  socialMessage.value = ''
+  clearShareDraft()
+  stopSocialPolling()
   localStorage.removeItem('javacoder-auth-token')
   authForm.value.password = ''
 
@@ -3140,6 +3561,308 @@ button:disabled {
   gap: 14px;
 }
 
+.inline-count {
+  min-width: 20px;
+  height: 20px;
+  margin-left: 6px;
+  border-radius: 999px;
+  padding: 0 6px;
+  background: var(--rust);
+  color: var(--paper-warm);
+  display: inline-grid;
+  place-items: center;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.social-dialog {
+  width: min(1080px, 100%);
+  max-height: min(860px, calc(100vh - 56px));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  overflow: hidden;
+  background: rgba(255, 253, 247, 0.96);
+  box-shadow: 0 34px 90px rgba(8, 10, 10, 0.34);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 14px;
+}
+
+.social-layout {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.social-sidebar,
+.chat-panel {
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 250, 240, 0.72);
+}
+
+.social-sidebar {
+  padding: 12px;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.social-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.social-search-results {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 253, 247, 0.86);
+  overflow: hidden;
+}
+
+.social-user-row,
+.friend-row,
+.chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.social-user-row {
+  min-height: 58px;
+  border-top: 1px solid var(--line);
+  padding: 10px;
+}
+
+.social-user-row:first-child {
+  border-top: 0;
+}
+
+.social-user-row p,
+.friend-row small {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.social-heading {
+  margin: 6px 0 0;
+}
+
+.friend-row {
+  width: 100%;
+  min-height: 64px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(255, 253, 247, 0.72);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.friend-row:hover,
+.friend-row.active {
+  border-color: rgba(169, 79, 47, 0.5);
+  background: #fffdf7;
+}
+
+.friend-row > span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+}
+
+.friend-row strong,
+.friend-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-row em {
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: 999px;
+  background: var(--rust);
+  color: var(--paper-warm);
+  display: inline-grid;
+  place-items: center;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.chat-panel {
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.chat-head {
+  min-height: 66px;
+  border-bottom: 1px solid var(--line);
+  padding: 12px 14px;
+  background: rgba(255, 253, 247, 0.84);
+}
+
+.chat-head strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 18px;
+}
+
+.message-list {
+  min-height: 340px;
+  padding: 14px;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.chat-message {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.chat-message.mine {
+  justify-content: flex-end;
+}
+
+.message-bubble {
+  width: min(72%, 560px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fffdf7;
+  box-shadow: var(--shadow-soft);
+}
+
+.chat-message.mine .message-bubble {
+  border-color: rgba(32, 35, 38, 0.22);
+  background: #202326;
+  color: var(--paper-warm);
+}
+
+.message-meta {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.chat-message.mine .message-meta {
+  color: rgba(255, 248, 234, 0.62);
+}
+
+.message-kind {
+  display: block;
+  margin-top: 6px;
+}
+
+.message-bubble p {
+  margin: 8px 0 0;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.share-card {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid rgba(169, 79, 47, 0.32);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(255, 248, 234, 0.92);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  display: grid;
+  gap: 4px;
+}
+
+.share-card span {
+  color: var(--rust);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.shared-code {
+  max-height: 260px;
+  margin: 10px 0 0;
+  border-radius: 8px;
+  padding: 12px;
+  overflow: auto;
+  background: #101718;
+  color: #f6f0e2;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.chat-composer {
+  border-top: 1px solid var(--line);
+  padding: 12px;
+  background: rgba(255, 253, 247, 0.88);
+  display: grid;
+  gap: 10px;
+}
+
+.chat-composer textarea {
+  width: 100%;
+  min-height: 86px;
+  border: 1px solid #b9ad9d;
+  border-radius: 8px;
+  padding: 10px 12px;
+  resize: vertical;
+  background: #fffaf0;
+  color: var(--ink);
+  outline: none;
+}
+
+.chat-composer textarea:focus {
+  border-color: var(--rust);
+  box-shadow: 0 0 0 3px rgba(169, 79, 47, 0.18);
+}
+
+.share-draft {
+  border: 1px solid rgba(169, 79, 47, 0.32);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(255, 248, 234, 0.94);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.share-draft span {
+  color: var(--rust);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.share-draft strong {
+  display: block;
+  margin-top: 2px;
+}
+
+.social-empty {
+  color: var(--muted);
+}
+
+.social-empty.large {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+}
+
 .workbench:not(.problem-collapsed) {
   grid-template-columns: minmax(260px, var(--problem-pane-width)) 14px minmax(520px, 1fr);
   gap: 0;
@@ -3190,9 +3913,26 @@ button:disabled {
 
   .solution-board-head,
   .user-solution-card header,
-  .solution-card-actions {
+  .solution-card-actions,
+  .social-layout,
+  .social-search,
+  .share-draft {
     align-items: stretch;
+    grid-template-columns: 1fr;
     flex-direction: column;
+  }
+
+  .social-dialog {
+    max-height: calc(100vh - 24px);
+    overflow: auto;
+  }
+
+  .social-layout {
+    display: grid;
+  }
+
+  .message-bubble {
+    width: 100%;
   }
 
 }
