@@ -4,8 +4,8 @@
       <header class="home-header">
         <div>
           <p class="eyebrow">JavaCoder Online Judge</p>
-          <h1>选择一道题，进入代码编辑界面</h1>
-          <p class="home-subtitle">从题库开始练习 Java 17，提交后立即查看编译与用例结果。</p>
+          <h1>代码在线练习平台</h1>
+          <p class="home-subtitle">轻松学会一门高级语言！</p>
         </div>
         <div class="home-side">
           <div class="account-bar">
@@ -132,7 +132,7 @@
         <button class="ghost-button icon-button" type="button" @click="goHome" aria-label="返回主页">
           ←
         </button>
-        <div>
+        <div class="editor-title">
           <p class="eyebrow">题目 {{ selectedProblem?.id }}</p>
           <h1>{{ selectedProblem?.title || '正在加载题目' }}</h1>
         </div>
@@ -158,32 +158,140 @@
       <div v-if="loadingProblem" class="loading-panel">正在加载题目...</div>
       <div v-if="errorMessage" class="error-banner">{{ errorMessage }}</div>
 
-      <div v-if="selectedProblem" class="workbench">
-        <section class="problem-pane">
-          <div class="tag-row">
-            <span v-for="tag in selectedProblem.tags" :key="tag">{{ tag }}</span>
-          </div>
+      <div
+        v-if="selectedProblem"
+        ref="workbenchRef"
+        :class="['workbench', { 'problem-collapsed': problemPaneCollapsed, resizing: isResizingProblemPane }]"
+        :style="workbenchStyle"
+      >
+        <section :class="['problem-pane', { collapsed: problemPaneCollapsed }]">
+          <button
+            v-if="problemPaneCollapsed"
+            class="problem-restore-button"
+            type="button"
+            aria-label="展开题目描述"
+            @click="problemPaneCollapsed = false"
+          >
+            <span aria-hidden="true">&gt;</span>
+            <strong>题目描述</strong>
+          </button>
 
-          <article class="statement">
-            <p>{{ selectedProblem.description }}</p>
-            <h2>输入</h2>
-            <p>{{ selectedProblem.inputFormat }}</p>
-            <h2>输出</h2>
-            <p>{{ selectedProblem.outputFormat }}</p>
-            <h2>数据范围</h2>
-            <p>{{ selectedProblem.constraints }}</p>
-          </article>
+          <template v-else>
+            <header class="problem-module-head">
+              <div>
+                <p class="eyebrow">Problem</p>
+                <strong>题目描述</strong>
+              </div>
+              <button
+                class="ghost-button icon-button pane-collapse-button"
+                type="button"
+                aria-label="折叠题目描述"
+                @click="problemPaneCollapsed = true"
+              >
+                &lt;
+              </button>
+            </header>
 
-          <section class="examples">
-            <article v-for="(example, index) in selectedProblem.examples" :key="index" class="example-card">
-              <div class="example-title">示例 {{ index + 1 }}</div>
-              <pre>输入:
+            <div class="problem-tabs" role="tablist" aria-label="题目内容切换">
+              <button
+                :class="{ active: activeProblemTab === 'statement' }"
+                type="button"
+                role="tab"
+                :aria-selected="activeProblemTab === 'statement'"
+                @click="activeProblemTab = 'statement'"
+              >
+                题目
+              </button>
+              <button
+                :class="{ active: activeProblemTab === 'solutions' }"
+                type="button"
+                role="tab"
+                :aria-selected="activeProblemTab === 'solutions'"
+                @click="activeProblemTab = 'solutions'"
+              >
+                题解
+              </button>
+            </div>
+
+            <div v-show="activeProblemTab === 'statement'" class="tag-row">
+              <span v-for="tag in selectedProblem.tags" :key="tag">{{ tag }}</span>
+            </div>
+
+            <article v-show="activeProblemTab === 'statement'" class="statement">
+              <p>{{ selectedProblem.description }}</p>
+              <h2>输入</h2>
+              <p>{{ selectedProblem.inputFormat }}</p>
+              <h2>输出</h2>
+              <p>{{ selectedProblem.outputFormat }}</p>
+              <h2>数据范围</h2>
+              <p>{{ selectedProblem.constraints }}</p>
+            </article>
+
+            <section v-show="activeProblemTab === 'statement'" class="examples">
+              <article v-for="(example, index) in selectedProblem.examples" :key="index" class="example-card">
+                <div class="example-title">示例 {{ index + 1 }}</div>
+                <pre>输入:
 {{ example.input }}输出:
 {{ example.output }}</pre>
-              <p>{{ example.explanation }}</p>
-            </article>
-          </section>
+                <p>{{ example.explanation }}</p>
+              </article>
+            </section>
+
+            <section v-show="activeProblemTab === 'solutions'" class="solution-board">
+              <header class="solution-board-head">
+                <div>
+                  <p class="eyebrow">Solutions</p>
+                  <strong>{{ userSolutions.length }} 篇题解</strong>
+                </div>
+                <button class="primary-button compact-button" type="button" @click="openSolutionEditor()">
+                  写题解
+                </button>
+              </header>
+
+              <div v-if="solutionMessage" class="admin-message">{{ solutionMessage }}</div>
+              <div v-if="loadingSolutions" class="loading-panel compact-panel">正在加载题解...</div>
+              <div v-else-if="userSolutions.length === 0" class="catalog-empty solution-empty">
+                <strong>暂无题解</strong>
+                <span>写下思路、坑点或复杂度分析，给下一次复盘留个锚点。</span>
+              </div>
+              <article v-for="solution in userSolutions" :key="solution.id" class="user-solution-card">
+                <header>
+                  <div>
+                    <span class="solution-meta">
+                      {{ solution.authorName }} · {{ formatTime(solution.updatedAt) }} · {{ formatSolutionLanguage(solution.language) }}
+                    </span>
+                    <h3>{{ solution.title }}</h3>
+                  </div>
+                  <div v-if="canManageSolution(solution)" class="solution-card-actions">
+                    <button
+                      v-if="canEditSolution(solution)"
+                      class="ghost-button compact-button"
+                      type="button"
+                      @click="openSolutionEditor(solution)"
+                    >
+                      编辑
+                    </button>
+                    <button class="ghost-button compact-button danger-button" type="button" @click="deleteSolution(solution)">删除</button>
+                  </div>
+                </header>
+                <p class="solution-content">{{ solution.content }}</p>
+                <pre v-if="solution.code" class="solution-snippet">{{ solution.code }}</pre>
+              </article>
+            </section>
+          </template>
         </section>
+
+        <div
+          v-if="!problemPaneCollapsed"
+          class="pane-resizer"
+          role="separator"
+          aria-label="调整题目和代码模块宽度"
+          aria-orientation="vertical"
+          @mousedown="startProblemPaneResize"
+          @dblclick="resetProblemPaneWidth"
+        >
+          <span aria-hidden="true"></span>
+        </div>
 
         <section class="judge-pane">
           <div class="editor-toolbar">
@@ -322,6 +430,51 @@
       </section>
     </div>
 
+    <div v-if="showSolutionEditorDialog" class="modal-backdrop" role="presentation" @click.self="closeSolutionEditor">
+      <section class="user-solution-dialog" role="dialog" aria-modal="true" aria-labelledby="user-solution-title">
+        <header class="solution-header">
+          <div>
+            <p class="eyebrow">User Solution</p>
+            <h2 id="user-solution-title">{{ editingSolution ? '编辑题解' : '发布题解' }}</h2>
+          </div>
+          <button class="ghost-button icon-button" type="button" aria-label="关闭题解编辑窗口" @click="closeSolutionEditor">
+            ×
+          </button>
+        </header>
+
+        <form class="user-solution-form" @submit.prevent="submitSolution">
+          <label>
+            <span>标题</span>
+            <input v-model.trim="solutionForm.title" maxlength="80" required />
+          </label>
+          <label>
+            <span>正文</span>
+            <textarea
+              v-model.trim="solutionForm.content"
+              class="solution-textarea"
+              maxlength="20000"
+              required
+            />
+          </label>
+          <label>
+            <span>语言</span>
+            <input v-model.trim="solutionForm.language" maxlength="32" />
+          </label>
+          <label>
+            <span>代码片段</span>
+            <textarea v-model="solutionForm.code" class="solution-code-input" spellcheck="false" />
+          </label>
+          <div v-if="solutionMessage" class="auth-message">{{ solutionMessage }}</div>
+          <footer class="solution-actions">
+            <button class="ghost-button" type="button" @click="closeSolutionEditor">取消</button>
+            <button class="primary-button" type="submit" :disabled="savingSolution">
+              {{ savingSolution ? '保存中...' : editingSolution ? '保存修改' : '发布题解' }}
+            </button>
+          </footer>
+        </form>
+      </section>
+    </div>
+
     <div v-if="showAuthDialog" class="modal-backdrop" role="presentation" @click.self="closeAuthDialog">
       <section class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title">
         <header class="auth-header">
@@ -382,11 +535,15 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const viewMode = ref('home')
 const problems = ref([])
 const selectedProblem = ref(null)
+const problemPaneCollapsed = ref(false)
+const problemPaneWidth = ref(42)
+const isResizingProblemPane = ref(false)
+const workbenchRef = ref(null)
 const submissions = ref([])
 const code = ref('')
 const latestResult = ref(null)
@@ -398,6 +555,19 @@ const submitting = ref(false)
 const errorMessage = ref('')
 const showSolutionDialog = ref(false)
 const copiedSolution = ref(false)
+const activeProblemTab = ref('statement')
+const userSolutions = ref([])
+const loadingSolutions = ref(false)
+const solutionMessage = ref('')
+const showSolutionEditorDialog = ref(false)
+const savingSolution = ref(false)
+const editingSolution = ref(null)
+const solutionForm = ref({
+  title: '',
+  content: '',
+  language: 'java',
+  code: ''
+})
 const currentUser = ref(null)
 const authToken = ref(localStorage.getItem('javacoder-auth-token') || '')
 const showAuthDialog = ref(false)
@@ -422,6 +592,9 @@ const activeProblemId = computed(() => selectedProblem.value?.id)
 const acceptedProblemCount = computed(() => problems.value.filter((problem) => problem.acceptedCount > 0).length)
 const currentSolution = computed(() => selectedProblem.value?.referenceSolution || '')
 const isAdmin = computed(() => currentUser.value?.role === 'ADMIN')
+const workbenchStyle = computed(() => ({
+  '--problem-pane-width': `${problemPaneWidth.value}%`
+}))
 const filteredProblems = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase()
 
@@ -462,6 +635,53 @@ onMounted(async () => {
   window.addEventListener('popstate', syncViewFromHash)
 })
 
+onUnmounted(() => {
+  stopProblemPaneResize()
+})
+
+function startProblemPaneResize(event) {
+  if (problemPaneCollapsed.value) {
+    return
+  }
+
+  event.preventDefault()
+  isResizingProblemPane.value = true
+  document.body.classList.add('resizing-layout')
+  window.addEventListener('mousemove', resizeProblemPane)
+  window.addEventListener('mouseup', stopProblemPaneResize)
+}
+
+function resizeProblemPane(event) {
+  const workbench = workbenchRef.value
+  if (!workbench) {
+    return
+  }
+
+  const bounds = workbench.getBoundingClientRect()
+  const dividerWidth = 10
+  const minProblemPane = 260
+  const minJudgePane = 520
+  const maxProblemPane = Math.max(minProblemPane, bounds.width - minJudgePane - dividerWidth)
+  const nextWidth = Math.min(Math.max(event.clientX - bounds.left, minProblemPane), maxProblemPane)
+
+  problemPaneWidth.value = Number(((nextWidth / bounds.width) * 100).toFixed(2))
+}
+
+function stopProblemPaneResize() {
+  if (!isResizingProblemPane.value) {
+    return
+  }
+
+  isResizingProblemPane.value = false
+  document.body.classList.remove('resizing-layout')
+  window.removeEventListener('mousemove', resizeProblemPane)
+  window.removeEventListener('mouseup', stopProblemPaneResize)
+}
+
+function resetProblemPaneWidth() {
+  problemPaneWidth.value = 42
+}
+
 async function loadProblems() {
   loadingProblems.value = true
   errorMessage.value = ''
@@ -479,6 +699,23 @@ async function loadSubmissions() {
     submissions.value = await requestJson('/api/submissions')
   } catch (error) {
     errorMessage.value = error.message
+  }
+}
+
+async function loadSolutions(problemId = activeProblemId.value) {
+  if (!problemId) {
+    userSolutions.value = []
+    return
+  }
+
+  loadingSolutions.value = true
+  solutionMessage.value = ''
+  try {
+    userSolutions.value = await requestJson(`/api/problems/${problemId}/solutions`)
+  } catch (error) {
+    solutionMessage.value = error.message
+  } finally {
+    loadingSolutions.value = false
   }
 }
 
@@ -562,9 +799,14 @@ async function openProblem(problemId, updateHash = true) {
   loadingProblem.value = true
   errorMessage.value = ''
   latestResult.value = null
+  problemPaneCollapsed.value = false
   selectedProblem.value = null
   showSolutionDialog.value = false
   copiedSolution.value = false
+  activeProblemTab.value = 'statement'
+  userSolutions.value = []
+  solutionMessage.value = ''
+  showSolutionEditorDialog.value = false
 
   if (updateHash) {
     const targetHash = `#problem/${problemId}`
@@ -576,6 +818,7 @@ async function openProblem(problemId, updateHash = true) {
   try {
     selectedProblem.value = await requestJson(`/api/problems/${problemId}`)
     code.value = selectedProblem.value.starterCode
+    await loadSolutions(problemId)
   } catch (error) {
     errorMessage.value = error.message
   } finally {
@@ -586,10 +829,15 @@ async function openProblem(problemId, updateHash = true) {
 function goHome() {
   viewMode.value = 'home'
   selectedProblem.value = null
+  problemPaneCollapsed.value = false
   latestResult.value = null
   errorMessage.value = ''
   showSolutionDialog.value = false
   copiedSolution.value = false
+  activeProblemTab.value = 'statement'
+  userSolutions.value = []
+  solutionMessage.value = ''
+  showSolutionEditorDialog.value = false
   window.history.pushState(null, '', `${window.location.pathname}${window.location.search}`)
 }
 
@@ -637,6 +885,114 @@ async function copySolutionCode() {
   } catch (error) {
     errorMessage.value = '复制失败，请手动选中代码复制。'
   }
+}
+
+function openSolutionEditor(solution = null) {
+  if (!requireLogin(() => openSolutionEditor(solution), '请先登录，登录后即可发布题解。')) {
+    return
+  }
+
+  editingSolution.value = solution
+  solutionMessage.value = ''
+  solutionForm.value = solution
+    ? {
+        title: solution.title,
+        content: solution.content,
+        language: solution.language,
+        code: solution.code || ''
+      }
+    : {
+        title: '',
+        content: '',
+        language: 'java',
+        code: ''
+      }
+  showSolutionEditorDialog.value = true
+}
+
+function closeSolutionEditor() {
+  showSolutionEditorDialog.value = false
+  savingSolution.value = false
+  editingSolution.value = null
+  solutionMessage.value = ''
+}
+
+async function submitSolution() {
+  if (!activeProblemId.value) {
+    return
+  }
+
+  if (!requireLogin(() => submitSolution(), '请先登录后再保存题解。')) {
+    return
+  }
+
+  savingSolution.value = true
+  solutionMessage.value = ''
+  const payload = {
+    title: solutionForm.value.title,
+    content: solutionForm.value.content,
+    language: solutionForm.value.language || 'java',
+    code: solutionForm.value.code || '',
+    relatedSubmissionId: null
+  }
+
+  try {
+    const targetUrl = editingSolution.value
+      ? `/api/solutions/${editingSolution.value.id}`
+      : `/api/problems/${activeProblemId.value}/solutions`
+    const savedSolution = await requestJson(targetUrl, {
+      method: editingSolution.value ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(payload)
+    })
+
+    if (editingSolution.value) {
+      userSolutions.value = userSolutions.value.map((solution) =>
+        solution.id === savedSolution.id ? savedSolution : solution
+      )
+    } else {
+      userSolutions.value = [savedSolution, ...userSolutions.value]
+    }
+    closeSolutionEditor()
+    activeProblemTab.value = 'solutions'
+  } catch (error) {
+    solutionMessage.value = error.message
+  } finally {
+    savingSolution.value = false
+  }
+}
+
+async function deleteSolution(solution) {
+  if (!canManageSolution(solution)) {
+    return
+  }
+
+  const confirmed = window.confirm(`确定删除题解「${solution.title}」吗？`)
+  if (!confirmed) {
+    return
+  }
+
+  solutionMessage.value = ''
+  try {
+    await requestJson(`/api/solutions/${solution.id}`, {
+      method: 'DELETE',
+      headers: authHeaders()
+    })
+    userSolutions.value = userSolutions.value.filter((item) => item.id !== solution.id)
+  } catch (error) {
+    solutionMessage.value = error.message
+  }
+}
+
+function canManageSolution(solution) {
+  return Boolean(
+    currentUser.value
+      && (currentUser.value.role === 'ADMIN' || currentUser.value.id === solution.authorId)
+  )
+}
+
+function canEditSolution(solution) {
+  return Boolean(currentUser.value && currentUser.value.id === solution.authorId)
 }
 
 async function submitCode() {
@@ -857,6 +1213,12 @@ function formatUserRole(role) {
     ADMIN: '管理员',
     USER: '普通用户'
   }[role] || role
+}
+
+function formatSolutionLanguage(language) {
+  return {
+    java: 'Java'
+  }[language] || language
 }
 
 function formatTime(value) {
@@ -2494,5 +2856,344 @@ button:disabled {
   .modal-backdrop {
     padding: 12px;
   }
+}
+
+.editor-header > .editor-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.editor-header > .editor-actions {
+  flex: 0 0 auto;
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
+.problem-module-head {
+  position: sticky;
+  top: -22px;
+  z-index: 2;
+  min-height: 58px;
+  margin: -22px -22px 18px;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 12px 10px 18px;
+  background: rgba(255, 253, 247, 0.94);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.problem-module-head .eyebrow,
+.problem-module-head strong {
+  margin: 0;
+}
+
+.problem-module-head strong {
+  font-size: 17px;
+}
+
+.problem-tabs {
+  margin-bottom: 16px;
+  border: 1px solid #d2c3b1;
+  border-radius: 8px;
+  padding: 4px;
+  background: #eee4d6;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.problem-tabs button {
+  min-height: 34px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 900;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.problem-tabs button.active {
+  background: var(--ink);
+  color: var(--paper-warm);
+}
+
+.solution-board {
+  display: grid;
+  gap: 12px;
+}
+
+.solution-board-head,
+.user-solution-card header,
+.solution-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.solution-board-head,
+.user-solution-card header {
+  justify-content: space-between;
+}
+
+.solution-board-head {
+  min-height: 48px;
+}
+
+.solution-board-head strong {
+  display: block;
+  margin-top: 2px;
+}
+
+.solution-empty {
+  min-height: 168px;
+}
+
+.user-solution-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(255, 253, 247, 0.94);
+  box-shadow: var(--shadow-soft);
+}
+
+.user-solution-card h3 {
+  margin: 4px 0 0;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.solution-meta {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.solution-content {
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.solution-snippet {
+  max-height: 280px;
+  margin-top: 12px;
+  border: 1px solid #111718;
+  border-radius: 8px;
+  padding: 14px;
+  overflow: auto;
+  background: #101718;
+  color: #f6f0e2;
+  font-size: 13px;
+}
+
+.user-solution-dialog {
+  width: min(760px, 100%);
+  max-height: min(820px, calc(100vh - 56px));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  overflow: auto;
+  background: rgba(255, 253, 247, 0.96);
+  box-shadow: 0 34px 90px rgba(8, 10, 10, 0.34);
+  display: grid;
+  gap: 16px;
+}
+
+.user-solution-form {
+  display: grid;
+  gap: 14px;
+}
+
+.user-solution-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.user-solution-form input,
+.solution-textarea,
+.solution-code-input {
+  width: 100%;
+  border: 1px solid #b9ad9d;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fffaf0;
+  color: var(--ink);
+  outline: none;
+}
+
+.user-solution-form input {
+  min-height: 44px;
+}
+
+.solution-textarea {
+  min-height: 180px;
+  resize: vertical;
+  line-height: 1.7;
+}
+
+.solution-code-input {
+  min-height: 180px;
+  resize: vertical;
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.user-solution-form input:focus,
+.solution-textarea:focus,
+.solution-code-input:focus {
+  border-color: var(--rust);
+  box-shadow: 0 0 0 3px rgba(169, 79, 47, 0.18);
+}
+
+.pane-collapse-button {
+  width: 38px;
+  min-height: 36px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.pane-resizer {
+  width: 14px;
+  min-width: 14px;
+  cursor: col-resize;
+  background: linear-gradient(90deg, transparent 0 6px, rgba(32, 35, 38, 0.1) 6px 8px, transparent 8px 100%);
+  display: grid;
+  place-items: center;
+  touch-action: none;
+  transition: background 160ms ease;
+}
+
+.pane-resizer span {
+  width: 4px;
+  height: 74px;
+  border-radius: 999px;
+  background: rgba(32, 35, 38, 0.16);
+  transition: background 160ms ease, height 160ms ease;
+}
+
+.pane-resizer:hover span,
+.workbench.resizing .pane-resizer span {
+  height: 112px;
+  background: var(--rust);
+}
+
+.pane-resizer:hover,
+.workbench.resizing .pane-resizer {
+  background: linear-gradient(90deg, transparent 0 6px, rgba(169, 79, 47, 0.2) 6px 8px, transparent 8px 100%);
+}
+
+.problem-pane.collapsed {
+  width: 96px;
+  min-width: 96px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.problem-restore-button {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  border: 0;
+  border-radius: 8px;
+  padding: 18px 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 247, 0.98), rgba(255, 248, 234, 0.84)),
+    var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  font-weight: 900;
+}
+
+.problem-restore-button span {
+  width: 38px;
+  height: 38px;
+  border: 1px solid #b8ad9d;
+  border-radius: 8px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--rust);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.problem-restore-button strong {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  letter-spacing: 0;
+}
+
+.workbench.problem-collapsed {
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.workbench:not(.problem-collapsed) {
+  grid-template-columns: minmax(260px, var(--problem-pane-width)) 14px minmax(520px, 1fr);
+  gap: 0;
+}
+
+:global(body.resizing-layout),
+:global(body.resizing-layout *) {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+@media (max-width: 1180px) {
+  .pane-resizer {
+    display: none;
+  }
+
+  .problem-pane.collapsed {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .problem-restore-button {
+    min-height: 64px;
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+
+  .problem-restore-button strong {
+    writing-mode: horizontal-tb;
+  }
+}
+
+@media (max-width: 760px) {
+  .editor-header > .editor-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .editor-header > .icon-button {
+    width: 42px;
+    min-width: 42px;
+    align-self: flex-start;
+  }
+
+  .problem-module-head {
+    position: static;
+  }
+
+  .solution-board-head,
+  .user-solution-card header,
+  .solution-card-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
 }
 </style>
