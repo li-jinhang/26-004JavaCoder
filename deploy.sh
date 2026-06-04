@@ -4,17 +4,39 @@ set -Eeuo pipefail
 # Linux deployment script for JavaCoder.
 # Override settings with environment variables, for example:
 #   BACKEND_SERVICE=javacoder-backend FRONTEND_DEPLOY_DIR=/usr/share/nginx/html ./deploy.sh
+# On BaoTa/BT Panel, the script auto-enters a safe build-only backend mode.
 
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+
+BAOTA_MODE="${BAOTA_MODE:-auto}" # auto, true, or false
+if [[ "${BAOTA_MODE}" == "true" || ( "${BAOTA_MODE}" == "auto" && -d /www/server/panel ) ]]; then
+  IS_BAOTA_MODE=true
+else
+  IS_BAOTA_MODE=false
+fi
+
+if [[ "${IS_BAOTA_MODE}" == "true" ]]; then
+  DEFAULT_BACKEND_RUN_MODE="none"
+  DEFAULT_DEPLOY_BACKEND_JAR="false"
+  DEFAULT_HEALTHCHECK_URL=""
+  DEFAULT_MAVEN_CLEAN="false"
+else
+  DEFAULT_BACKEND_RUN_MODE="systemd"
+  DEFAULT_DEPLOY_BACKEND_JAR="true"
+  DEFAULT_HEALTHCHECK_URL="http://127.0.0.1:26904/api/health"
+  DEFAULT_MAVEN_CLEAN="true"
+fi
 
 BACKEND_DEPLOY_DIR="${BACKEND_DEPLOY_DIR:-/opt/javacoder/backend}"
 BACKEND_JAR_NAME="${BACKEND_JAR_NAME:-javacoder-backend.jar}"
 BACKEND_SERVICE="${BACKEND_SERVICE:-javacoder-backend}"
-BACKEND_RUN_MODE="${BACKEND_RUN_MODE:-systemd}" # systemd, jar, or none
+BACKEND_RUN_MODE="${BACKEND_RUN_MODE:-${DEFAULT_BACKEND_RUN_MODE}}" # systemd, jar, or none
 BACKEND_JAVA_OPTS="${BACKEND_JAVA_OPTS:-}"
 BACKEND_PID_FILE="${BACKEND_PID_FILE:-/opt/javacoder/backend/javacoder-backend.pid}"
 BACKEND_LOG_FILE="${BACKEND_LOG_FILE:-/opt/javacoder/backend/javacoder-backend.log}"
 JAVACODER_SQLITE_PATH="${JAVACODER_SQLITE_PATH:-/opt/javacoder/data/javacoder.sqlite}"
+DEPLOY_BACKEND_JAR="${DEPLOY_BACKEND_JAR:-${DEFAULT_DEPLOY_BACKEND_JAR}}"
+MAVEN_CLEAN="${MAVEN_CLEAN:-${DEFAULT_MAVEN_CLEAN}}"
 
 FRONTEND_DEPLOY_DIR="${FRONTEND_DEPLOY_DIR:-${APP_DIR}/frontend/dist}"
 FRONTEND_BUILD_DIR="${FRONTEND_BUILD_DIR:-${APP_DIR}/.deploy/frontend-dist}"
@@ -24,7 +46,7 @@ SANDBOX_IMAGE_NAME="${SANDBOX_IMAGE_NAME:-javacoder-java17-sandbox:latest}"
 
 SKIP_TESTS="${SKIP_TESTS:-true}"
 RUN_NPM_CI="${RUN_NPM_CI:-true}"
-HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:26904/api/health}"
+HEALTHCHECK_URL="${HEALTHCHECK_URL:-${DEFAULT_HEALTHCHECK_URL}}"
 HEALTHCHECK_RETRIES="${HEALTHCHECK_RETRIES:-30}"
 USE_SUDO="${USE_SUDO:-auto}"
 
@@ -76,14 +98,20 @@ install_dependencies() {
 }
 
 build_project() {
+  local mvn_goals=(package)
+
   log "Building frontend"
   npm --prefix "${APP_DIR}/frontend" run build -- --outDir "${FRONTEND_BUILD_DIR}" --emptyOutDir
 
   log "Building backend"
+  if [[ "${MAVEN_CLEAN}" == "true" ]]; then
+    mvn_goals=(clean package)
+  fi
+
   if [[ "${SKIP_TESTS}" == "true" ]]; then
-    mvn -f "${APP_DIR}/backend/pom.xml" clean package -DskipTests
+    mvn -f "${APP_DIR}/backend/pom.xml" "${mvn_goals[@]}" -DskipTests
   else
-    mvn -f "${APP_DIR}/backend/pom.xml" clean package
+    mvn -f "${APP_DIR}/backend/pom.xml" "${mvn_goals[@]}"
   fi
 
   if [[ "${BUILD_SANDBOX_IMAGE}" == "true" ]]; then
@@ -195,11 +223,18 @@ wait_for_healthcheck() {
 }
 
 main() {
+  if [[ "${IS_BAOTA_MODE}" == "true" ]]; then
+    log "BaoTa/BT Panel mode enabled: backend restart is disabled unless BACKEND_RUN_MODE is set"
+  fi
   check_prerequisites
   install_dependencies
   build_project
   deploy_frontend
-  deploy_backend_jar
+  if [[ "${DEPLOY_BACKEND_JAR}" == "true" ]]; then
+    deploy_backend_jar
+  else
+    log "Skipping backend jar deployment because DEPLOY_BACKEND_JAR=false"
+  fi
   restart_backend
   wait_for_healthcheck
   log "Deployment completed"
