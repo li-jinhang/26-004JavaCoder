@@ -201,6 +201,24 @@ Environment=JAVACODER_SQLITE_PATH=/opt/javacoder/data/javacoder.sqlite
 export JAVACODER_ADMIN_ACCOUNTS=file:/opt/javacoder/data/admin-users.json
 ```
 
+宝塔面板部署时，`deploy.sh` 会自动检测 `/www/server/panel` 并进入安全模式：
+
+- 不执行 `mvn clean`，避免删除宝塔 Java 项目正在引用的 `backend/target/*.jar`
+- 不重启 systemd 或自管 jar 进程，后端仍由宝塔 Java 项目管理
+- 不把 jar 复制到 `/opt/javacoder/backend`
+
+如果需要手动指定宝塔模式，可以这样运行：
+
+```bash
+BAOTA_MODE=true ./deploy.sh
+```
+
+如果不是宝塔环境，并且希望脚本接管后端重启，可以显式指定：
+
+```bash
+BAOTA_MODE=false BACKEND_RUN_MODE=systemd DEPLOY_BACKEND_JAR=true ./deploy.sh
+```
+
 前端单独部署：
 
 ```bash
