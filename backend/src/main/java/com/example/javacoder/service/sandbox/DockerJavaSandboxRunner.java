@@ -19,7 +19,6 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(prefix = "judge.sandbox", name = "mode", havingValue = "docker", matchIfMissing = true)
 public class DockerJavaSandboxRunner implements SandboxRunner {
 
-    private static final String UTF_8 = StandardCharsets.UTF_8.name();
     private final JudgeSandboxProperties properties;
 
     public DockerJavaSandboxRunner(JudgeSandboxProperties properties) {
@@ -27,11 +26,11 @@ public class DockerJavaSandboxRunner implements SandboxRunner {
     }
 
     @Override
-    public SandboxSession createSession(String sourceCode, JudgeLimits limits) throws IOException {
+    public SandboxSession createSession(LanguageSpec language, String sourceCode, JudgeLimits limits) throws IOException {
         Path workDir = Files.createTempDirectory("javacoder-docker-judge-");
         allowSandboxUserToWrite(workDir);
-        Files.writeString(workDir.resolve("Main.java"), sourceCode, StandardCharsets.UTF_8);
-        return new DockerSession(workDir, limits, properties);
+        Files.writeString(workDir.resolve(language.sourceFile()), sourceCode, StandardCharsets.UTF_8);
+        return new DockerSession(language, workDir, limits, properties);
     }
 
     private void allowSandboxUserToWrite(Path workDir) {
@@ -45,6 +44,7 @@ public class DockerJavaSandboxRunner implements SandboxRunner {
 
     private static class DockerSession implements SandboxSession {
 
+        private final LanguageSpec language;
         private final Path workDir;
         private final JudgeLimits limits;
         private final JudgeSandboxProperties properties;
@@ -52,7 +52,8 @@ public class DockerJavaSandboxRunner implements SandboxRunner {
         private final AtomicInteger runId = new AtomicInteger();
         private final List<String> containerNames = new CopyOnWriteArrayList<>();
 
-        DockerSession(Path workDir, JudgeLimits limits, JudgeSandboxProperties properties) {
+        DockerSession(LanguageSpec language, Path workDir, JudgeLimits limits, JudgeSandboxProperties properties) {
+            this.language = language;
             this.workDir = workDir;
             this.limits = limits;
             this.properties = properties;
@@ -60,12 +61,12 @@ public class DockerJavaSandboxRunner implements SandboxRunner {
 
         @Override
         public SandboxProcessResult compile() throws IOException {
-            return runDockerCommand(compileCommand(), null, limits.compileTimeout());
+            return runDockerCommand(language.sandboxCompileCommand(), null, limits.compileTimeout());
         }
 
         @Override
         public SandboxProcessResult run(String input) throws IOException {
-            return runDockerCommand(runCommand(), input, limits.runTimeout());
+            return runDockerCommand(language.sandboxRunCommand(), input, limits.runTimeout());
         }
 
         @Override
@@ -131,7 +132,7 @@ public class DockerJavaSandboxRunner implements SandboxRunner {
             command.add(workDir.toAbsolutePath() + ":/workspace:rw");
             command.add("-w");
             command.add("/workspace");
-            command.add(properties.getJavaImage());
+            command.add(language.dockerImage());
             command.addAll(sandboxCommand);
             return command;
         }
@@ -150,26 +151,5 @@ public class DockerJavaSandboxRunner implements SandboxRunner {
             }
         }
 
-        private List<String> compileCommand() {
-            return List.of(
-                    "javac",
-                    "-encoding", UTF_8,
-                    "-J-Dfile.encoding=" + UTF_8,
-                    "-J-Dsun.stdout.encoding=" + UTF_8,
-                    "-J-Dsun.stderr.encoding=" + UTF_8,
-                    "Main.java"
-            );
-        }
-
-        private List<String> runCommand() {
-            return List.of(
-                    "java",
-                    "-Dfile.encoding=" + UTF_8,
-                    "-Dsun.stdout.encoding=" + UTF_8,
-                    "-Dsun.stderr.encoding=" + UTF_8,
-                    "-cp", "/workspace",
-                    "Main"
-            );
-        }
     }
 }

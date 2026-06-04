@@ -31,8 +31,10 @@ class JudgeWorkerTest {
     @Test
     void returnsPendingSubmissionAndUpdatesItAfterBackgroundJudging() {
         SubmissionStore submissionStore = new SubmissionStore(sqliteJdbcTemplate(), new ObjectMapper());
-        JavaJudgeService judgeService = new JavaJudgeService(new AcceptingSandboxRunner(), new JudgeSandboxProperties());
-        JudgeWorker judgeWorker = new JudgeWorker(judgeService, submissionStore);
+        JudgeSandboxProperties properties = new JudgeSandboxProperties();
+        LanguageRegistry languageRegistry = new LanguageRegistry(properties);
+        JavaJudgeService judgeService = new JavaJudgeService(new AcceptingSandboxRunner(), properties, languageRegistry);
+        JudgeWorker judgeWorker = new JudgeWorker(judgeService, submissionStore, languageRegistry);
         Problem problem = new Problem(
                 1L,
                 "Async",
@@ -78,7 +80,7 @@ class JudgeWorkerTest {
     private static class AcceptingSandboxRunner implements SandboxRunner {
 
         @Override
-        public SandboxSession createSession(String sourceCode, JudgeLimits limits) {
+        public SandboxSession createSession(com.example.javacoder.service.sandbox.LanguageSpec language, String sourceCode, JudgeLimits limits) {
             return new SandboxSession() {
                 @Override
                 public SandboxProcessResult compile() {

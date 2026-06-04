@@ -6,6 +6,7 @@ import com.example.javacoder.model.SubmissionRequest;
 import com.example.javacoder.model.TestCase;
 import com.example.javacoder.model.TestCaseResult;
 import com.example.javacoder.service.sandbox.JudgeSandboxProperties;
+import com.example.javacoder.service.sandbox.LanguageSpec;
 import com.example.javacoder.service.sandbox.SandboxProcessResult;
 import com.example.javacoder.service.sandbox.SandboxRunner;
 import com.example.javacoder.service.sandbox.SandboxSession;
@@ -24,10 +25,16 @@ public class JavaJudgeService {
 
     private final SandboxRunner sandboxRunner;
     private final JudgeSandboxProperties properties;
+    private final LanguageRegistry languageRegistry;
 
-    public JavaJudgeService(SandboxRunner sandboxRunner, JudgeSandboxProperties properties) {
+    public JavaJudgeService(
+            SandboxRunner sandboxRunner,
+            JudgeSandboxProperties properties,
+            LanguageRegistry languageRegistry
+    ) {
         this.sandboxRunner = sandboxRunner;
         this.properties = properties;
+        this.languageRegistry = languageRegistry;
     }
 
     public Submission judge(Problem problem, SubmissionRequest request) {
@@ -36,26 +43,35 @@ public class JavaJudgeService {
 
     public Submission judge(long submissionId, Problem problem, SubmissionRequest request) {
         Instant startedAt = Instant.now();
-        if (!"java".equalsIgnoreCase(request.language())) {
-            return rejected(submissionId, problem, request, startedAt, "Unsupported Language", "当前评测器仅支持 Java。");
+        LanguageSpec language = languageRegistry.findById(request.language()).orElse(null);
+        if (language == null) {
+            return rejected(
+                    submissionId,
+                    problem,
+                    request,
+                    startedAt,
+                    request.language() == null ? "unknown" : request.language(),
+                    "Unsupported Language",
+                    "This language is not supported yet."
+            );
         }
         if (request.code() == null || request.code().isBlank()) {
-            return rejected(submissionId, problem, request, startedAt, "Compile Error", "代码不能为空。");
+            return rejected(submissionId, problem, request, startedAt, language.displayName(), "Compile Error", "Source code cannot be empty.");
         }
         if (request.code().getBytes(StandardCharsets.UTF_8).length > properties.getMaxSourceBytes()) {
-            return rejected(submissionId, problem, request, startedAt, "Source Limit Exceeded", "源码大小超过限制。");
+            return rejected(submissionId, problem, request, startedAt, language.displayName(), "Source Limit Exceeded", "Source code exceeds the configured limit.");
         }
 
-        try (SandboxSession session = sandboxRunner.createSession(request.code(), properties.limits())) {
+        try (SandboxSession session = sandboxRunner.createSession(language, request.code(), properties.limits())) {
             SandboxProcessResult compileResult = session.compile();
             if (compileResult.timedOut()) {
-                return rejected(submissionId, problem, request, startedAt, "Compile Timeout", "编译超时。");
+                return rejected(submissionId, problem, request, startedAt, language.displayName(), "Compile Timeout", "Compilation timed out.");
             }
             if (compileResult.outputLimitExceeded()) {
-                return rejected(submissionId, problem, request, startedAt, "Output Limit Exceeded", "编译输出超过限制。");
+                return rejected(submissionId, problem, request, startedAt, language.displayName(), "Output Limit Exceeded", "Compilation output exceeds the configured limit.");
             }
             if (compileResult.exitCode() != 0) {
-                return rejected(submissionId, problem, request, startedAt, "Compile Error", firstUsefulLine(compileResult.stderr()));
+                return rejected(submissionId, problem, request, startedAt, language.displayName(), "Compile Error", firstUsefulLine(compileResult.stderr()));
             }
 
             List<TestCaseResult> caseResults = new ArrayList<>();
@@ -79,14 +95,14 @@ public class JavaJudgeService {
                     ? "Accepted"
                     : caseResults.get(caseResults.size() - 1).status();
             String message = "Accepted".equals(status)
-                    ? "所有测试用例均已通过。"
+                    ? "All test cases passed."
                     : caseResults.get(caseResults.size() - 1).message();
 
             return new Submission(
                     submissionId,
                     problem.id(),
                     problem.title(),
-                    "Java",
+                    language.displayName(),
                     status,
                     passedCases,
                     problem.testCases().size(),
@@ -96,7 +112,7 @@ public class JavaJudgeService {
                     caseResults
             );
         } catch (IOException exception) {
-            return rejected(submissionId, problem, request, startedAt, "Judge Error", "评测沙箱错误：" + exception.getMessage());
+            return rejected(submissionId, problem, request, startedAt, language.displayName(), "Judge Error", "Sandbox error: " + exception.getMessage());
         }
     }
 
@@ -105,6 +121,7 @@ public class JavaJudgeService {
             Problem problem,
             SubmissionRequest request,
             Instant submittedAt,
+            String languageName,
             String status,
             String message
     ) {
@@ -112,7 +129,7 @@ public class JavaJudgeService {
                 submissionId,
                 problem.id(),
                 problem.title(),
-                request.language() == null ? "Java" : request.language(),
+                languageName,
                 status,
                 0,
                 problem.testCases().size(),
@@ -131,22 +148,22 @@ public class JavaJudgeService {
 
         if (runResult.timedOut()) {
             status = "Time Limit Exceeded";
-            message = "程序运行超时。";
+            message = "Program timed out.";
         } else if (runResult.outputLimitExceeded()) {
             status = "Output Limit Exceeded";
-            message = "程序输出超过限制。";
+            message = "Program output exceeds the configured limit.";
         } else if (runResult.memoryLimitExceeded()) {
             status = "Memory Limit Exceeded";
-            message = "程序内存使用超过限制。";
+            message = "Program memory usage exceeds the configured limit.";
         } else if (runResult.exitCode() != 0) {
             status = "Runtime Error";
             message = firstUsefulLine(runResult.stderr());
         } else if (expectedOutput.equals(actualOutput)) {
             status = "Accepted";
-            message = "该用例已通过。";
+            message = "This test case passed.";
         } else {
             status = "Wrong Answer";
-            message = "实际输出与期望答案不一致。";
+            message = "Actual output does not match the expected answer.";
         }
 
         return new TestCaseResult(
@@ -171,12 +188,12 @@ public class JavaJudgeService {
 
     private String firstUsefulLine(String text) {
         if (text == null || text.isBlank()) {
-            return "未返回错误信息。";
+            return "No error message returned.";
         }
         return Stream.of(text.replace("\r\n", "\n").split("\n"))
                 .map(String::trim)
                 .filter(line -> !line.isBlank())
                 .findFirst()
-                .orElse("未返回错误信息。");
+                .orElse("No error message returned.");
     }
 }

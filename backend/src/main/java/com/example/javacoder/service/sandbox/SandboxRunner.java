@@ -4,5 +4,5 @@ import java.io.IOException;
 
 public interface SandboxRunner {
 
-    SandboxSession createSession(String sourceCode, JudgeLimits limits) throws IOException;
+    SandboxSession createSession(LanguageSpec language, String sourceCode, JudgeLimits limits) throws IOException;
 }

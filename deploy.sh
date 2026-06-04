@@ -47,6 +47,7 @@ FRONTEND_BUILD_DIR="${FRONTEND_BUILD_DIR:-${APP_DIR}/.deploy/frontend-dist}"
 
 BUILD_SANDBOX_IMAGE="${BUILD_SANDBOX_IMAGE:-true}"
 SANDBOX_IMAGE_NAME="${SANDBOX_IMAGE_NAME:-javacoder-java17-sandbox:latest}"
+PYTHON_SANDBOX_IMAGE_NAME="${PYTHON_SANDBOX_IMAGE_NAME:-javacoder-python3-sandbox:latest}"
 
 SKIP_TESTS="${SKIP_TESTS:-true}"
 RUN_NPM_CI="${RUN_NPM_CI:-true}"
@@ -121,6 +122,8 @@ build_project() {
   if [[ "${BUILD_SANDBOX_IMAGE}" == "true" ]]; then
     log "Building Java sandbox Docker image: ${SANDBOX_IMAGE_NAME}"
     run_sudo docker build -f "${APP_DIR}/backend/Dockerfile.sandbox-java17" -t "${SANDBOX_IMAGE_NAME}" "${APP_DIR}/backend"
+    log "Building Python sandbox Docker image: ${PYTHON_SANDBOX_IMAGE_NAME}"
+    run_sudo docker build -f "${APP_DIR}/backend/Dockerfile.sandbox-python3" -t "${PYTHON_SANDBOX_IMAGE_NAME}" "${APP_DIR}/backend"
   fi
 }
 

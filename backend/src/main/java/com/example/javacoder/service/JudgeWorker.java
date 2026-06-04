@@ -17,11 +17,13 @@ public class JudgeWorker implements AutoCloseable {
 
     private final JavaJudgeService javaJudgeService;
     private final SubmissionStore submissionStore;
+    private final LanguageRegistry languageRegistry;
     private final ExecutorService executorService;
 
-    public JudgeWorker(JavaJudgeService javaJudgeService, SubmissionStore submissionStore) {
+    public JudgeWorker(JavaJudgeService javaJudgeService, SubmissionStore submissionStore, LanguageRegistry languageRegistry) {
         this.javaJudgeService = javaJudgeService;
         this.submissionStore = submissionStore;
+        this.languageRegistry = languageRegistry;
         this.executorService = Executors.newFixedThreadPool(2, new JudgeThreadFactory());
     }
 
@@ -30,7 +32,7 @@ public class JudgeWorker implements AutoCloseable {
                 submissionStore.nextId(),
                 problem.id(),
                 problem.title(),
-                request.language() == null ? "Java" : request.language(),
+                displayLanguage(request.language()),
                 "Pending",
                 0,
                 problem.testCases().size(),
@@ -59,6 +61,12 @@ public class JudgeWorker implements AutoCloseable {
         submissionStore.findById(id)
                 .map(current -> withSubmittedAt(judged, current.submittedAt()))
                 .ifPresentOrElse(submissionStore::update, () -> submissionStore.update(judged));
+    }
+
+    private String displayLanguage(String languageId) {
+        return languageRegistry.findById(languageId)
+                .map(language -> language.displayName())
+                .orElse(languageId == null ? "unknown" : languageId);
     }
 
     private Submission withStatus(Submission submission, String status, String message) {

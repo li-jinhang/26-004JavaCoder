@@ -301,9 +301,21 @@
 
         <section class="judge-pane">
           <div class="editor-toolbar">
-            <div>
-              <p class="eyebrow">语言</p>
-              <strong>Java 17</strong>
+            <div class="language-control">
+              <label for="language-select">
+                <span class="eyebrow">Language</span>
+                <select
+                  id="language-select"
+                  v-model="selectedLanguage"
+                  class="language-select"
+                  :disabled="availableLanguages.length === 0"
+                  aria-label="Programming language"
+                >
+                  <option v-for="language in availableLanguages" :key="language.id" :value="language.id">
+                    {{ language.displayName }}
+                  </option>
+                </select>
+              </label>
             </div>
             <div class="toolbar-actions">
               <button class="ghost-button" type="button" :disabled="!currentSolution" @click="openSolutionDialog">
@@ -322,7 +334,7 @@
             v-model="code"
             spellcheck="false"
             class="code-editor"
-            aria-label="Java 源代码编辑器"
+            :aria-label="`${selectedLanguageInfo.displayName} source code editor`"
           />
 
           <section v-if="latestResult" class="result-panel">
@@ -680,7 +692,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const viewMode = ref('home')
 const problems = ref([])
@@ -691,6 +703,34 @@ const isResizingProblemPane = ref(false)
 const workbenchRef = ref(null)
 const submissions = ref([])
 const code = ref('')
+const fallbackLanguages = [
+  {
+    id: 'java',
+    displayName: 'Java 17',
+    defaultStarterCode: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        // TODO: read input and print the answer
+    }
+}
+`
+  },
+  {
+    id: 'python',
+    displayName: 'Python 3',
+    defaultStarterCode: `import sys
+
+data = sys.stdin.read().strip().split()
+
+# TODO: parse input and print the answer
+`
+  }
+]
+const languages = ref([...fallbackLanguages])
+const selectedLanguage = ref(localStorage.getItem('javacoder-language') || 'java')
+const codeDrafts = ref({})
 const latestResult = ref(null)
 const searchQuery = ref('')
 const difficultyFilter = ref('全部')
@@ -710,7 +750,7 @@ const editingSolution = ref(null)
 const solutionForm = ref({
   title: '',
   content: '',
-  language: 'java',
+  language: selectedLanguage.value,
   code: ''
 })
 const currentUser = ref(null)
@@ -754,7 +794,13 @@ let socialPollTimer = null
 const difficultyOptions = ['全部', '简单', '中等', '困难']
 const activeProblemId = computed(() => selectedProblem.value?.id)
 const acceptedProblemCount = computed(() => problems.value.filter((problem) => problem.acceptedCount > 0).length)
-const currentSolution = computed(() => selectedProblem.value?.referenceSolution || '')
+const availableLanguages = computed(() => languages.value.length ? languages.value : fallbackLanguages)
+const selectedLanguageInfo = computed(() => (
+  availableLanguages.value.find((language) => language.id === selectedLanguage.value)
+    || availableLanguages.value[0]
+    || fallbackLanguages[0]
+))
+const currentSolution = computed(() => solutionForLanguage(selectedLanguage.value))
 const isAdmin = computed(() => currentUser.value?.role === 'ADMIN')
 const selectedSocialFriend = computed(() => socialFriends.value.find((friend) => friend.id === selectedFriendId.value) || null)
 const socialUnreadCount = computed(() => socialFriends.value.reduce((total, friend) => total + friend.unreadCount, 0))
@@ -787,13 +833,21 @@ const filteredProblems = computed(() => {
   })
 })
 
+watch(selectedLanguage, (nextLanguage, previousLanguage) => {
+  localStorage.setItem('javacoder-language', nextLanguage)
+  if (!selectedProblem.value) {
+    return
+  }
+  saveCodeDraft(previousLanguage)
+  code.value = codeForLanguage(nextLanguage)
+})
 
 onMounted(async () => {
   await restoreSession()
   if (currentUser.value && !isAdmin.value) {
     await loadSocialFriends()
   }
-  await Promise.all([loadProblems(), loadSubmissions()])
+  await Promise.all([loadLanguages(), loadProblems(), loadSubmissions()])
 
   const hashProblemId = parseProblemIdFromHash()
   if (hashProblemId) {
@@ -861,6 +915,20 @@ async function loadProblems() {
     errorMessage.value = error.message
   } finally {
     loadingProblems.value = false
+  }
+}
+
+async function loadLanguages() {
+  try {
+    const nextLanguages = await requestJson('/api/languages')
+    if (Array.isArray(nextLanguages) && nextLanguages.length > 0) {
+      languages.value = nextLanguages
+    }
+    if (!availableLanguages.value.some((language) => language.id === selectedLanguage.value)) {
+      selectedLanguage.value = availableLanguages.value[0]?.id || 'java'
+    }
+  } catch (error) {
+    languages.value = [...fallbackLanguages]
   }
 }
 
@@ -1206,6 +1274,7 @@ function messagePreview(message) {
 }
 
 async function openProblem(problemId, updateHash = true) {
+  saveCodeDraft()
   viewMode.value = 'editor'
   loadingProblem.value = true
   errorMessage.value = ''
@@ -1228,7 +1297,7 @@ async function openProblem(problemId, updateHash = true) {
 
   try {
     selectedProblem.value = await requestJson(`/api/problems/${problemId}`)
-    code.value = selectedProblem.value.starterCode
+    code.value = codeForLanguage(selectedLanguage.value)
     await loadSolutions(problemId)
   } catch (error) {
     errorMessage.value = error.message
@@ -1268,8 +1337,54 @@ function parseProblemIdFromHash() {
 
 function resetCode() {
   if (selectedProblem.value) {
-    code.value = selectedProblem.value.starterCode
+    delete codeDrafts.value[draftKey(selectedProblem.value.id, selectedLanguage.value)]
+    code.value = starterCodeForLanguage(selectedLanguage.value)
   }
+}
+
+function draftKey(problemId, languageId) {
+  return `${problemId}:${languageId}`
+}
+
+function saveCodeDraft(languageId = selectedLanguage.value) {
+  if (!selectedProblem.value || !languageId) {
+    return
+  }
+  codeDrafts.value[draftKey(selectedProblem.value.id, languageId)] = code.value
+}
+
+function codeForLanguage(languageId) {
+  if (!selectedProblem.value) {
+    return ''
+  }
+  const savedCode = codeDrafts.value[draftKey(selectedProblem.value.id, languageId)]
+  return savedCode === undefined ? starterCodeForLanguage(languageId) : savedCode
+}
+
+function starterCodeForLanguage(languageId) {
+  if (!selectedProblem.value) {
+    return selectedLanguageInfo.value.defaultStarterCode || ''
+  }
+  const starterCodes = selectedProblem.value.starterCodes || {}
+  if (starterCodes[languageId]) {
+    return starterCodes[languageId]
+  }
+  if (languageId === 'java' && selectedProblem.value.starterCode) {
+    return selectedProblem.value.starterCode
+  }
+  const language = availableLanguages.value.find((item) => item.id === languageId)
+  return language?.defaultStarterCode || ''
+}
+
+function solutionForLanguage(languageId) {
+  if (!selectedProblem.value) {
+    return ''
+  }
+  const referenceSolutions = selectedProblem.value.referenceSolutions || {}
+  if (referenceSolutions[languageId]) {
+    return referenceSolutions[languageId]
+  }
+  return languageId === 'java' ? selectedProblem.value.referenceSolution || '' : ''
 }
 
 function openSolutionDialog() {
@@ -1315,8 +1430,8 @@ function openSolutionEditor(solution = null) {
     : {
         title: '',
         content: '',
-        language: 'java',
-        code: ''
+        language: selectedLanguage.value,
+        code: code.value || ''
       }
   showSolutionEditorDialog.value = true
 }
@@ -1342,7 +1457,7 @@ async function submitSolution() {
   const payload = {
     title: solutionForm.value.title,
     content: solutionForm.value.content,
-    language: solutionForm.value.language || 'java',
+    language: solutionForm.value.language || selectedLanguage.value,
     code: solutionForm.value.code || '',
     relatedSubmissionId: null
   }
@@ -1410,6 +1525,7 @@ async function submitCode() {
   if (!activeProblemId.value) {
     return
   }
+  saveCodeDraft()
 
   if (!requireLogin(() => submitCode(), '请先登录，登录后即可提交代码。')) {
     return
@@ -1423,7 +1539,7 @@ async function submitCode() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         problemId: activeProblemId.value,
-        language: 'java',
+        language: selectedLanguage.value,
         code: code.value
       })
     })
@@ -1637,9 +1753,7 @@ function formatUserRole(role) {
 }
 
 function formatSolutionLanguage(language) {
-  return {
-    java: 'Java'
-  }[language] || language
+  return availableLanguages.value.find((item) => item.id === language)?.displayName || language
 }
 
 function formatTime(value) {
@@ -2338,6 +2452,23 @@ pre {
 .toolbar-actions {
   display: flex;
   gap: 10px;
+}
+
+.language-control label {
+  display: grid;
+  gap: 6px;
+}
+
+.language-select {
+  min-height: 38px;
+  min-width: 136px;
+  border: 1px solid #b8ad9d;
+  border-radius: 8px;
+  padding: 0 34px 0 12px;
+  background: rgba(255, 253, 247, 0.72);
+  color: #202326;
+  font: inherit;
+  font-weight: 900;
 }
 
 .ghost-button,

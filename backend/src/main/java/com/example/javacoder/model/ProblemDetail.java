@@ -1,6 +1,7 @@
 package com.example.javacoder.model;
 
 import java.util.List;
+import java.util.Map;
 
 public record ProblemDetail(
         long id,
@@ -12,8 +13,10 @@ public record ProblemDetail(
         String outputFormat,
         String constraints,
         String starterCode,
+        Map<String, String> starterCodes,
         List<ExampleCase> examples,
         String referenceSolution,
+        Map<String, String> referenceSolutions,
         int visibleCaseCount,
         int totalCaseCount
 ) {
@@ -28,8 +31,10 @@ public record ProblemDetail(
                 problem.outputFormat(),
                 problem.constraints(),
                 problem.starterCode(),
+                problem.starterCodes(),
                 problem.examples(),
                 problem.referenceSolution(),
+                problem.referenceSolutions(),
                 problem.visibleCaseCount(),
                 problem.totalCaseCount()
         );

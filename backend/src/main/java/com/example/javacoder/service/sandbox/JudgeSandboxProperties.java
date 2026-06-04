@@ -9,6 +9,8 @@ public class JudgeSandboxProperties {
     private String mode = "docker";
     private String dockerExecutable = "docker";
     private String javaImage = "javacoder-java17-sandbox:latest";
+    private String pythonImage = "javacoder-python3-sandbox:latest";
+    private String pythonExecutable = "python3";
     private Duration compileTimeout = Duration.ofSeconds(8);
     private Duration runTimeout = Duration.ofSeconds(3);
     private int maxSourceBytes = 65536;
@@ -45,6 +47,22 @@ public class JudgeSandboxProperties {
 
     public void setJavaImage(String javaImage) {
         this.javaImage = javaImage;
+    }
+
+    public String getPythonImage() {
+        return pythonImage;
+    }
+
+    public void setPythonImage(String pythonImage) {
+        this.pythonImage = pythonImage;
+    }
+
+    public String getPythonExecutable() {
+        return pythonExecutable;
+    }
+
+    public void setPythonExecutable(String pythonExecutable) {
+        this.pythonExecutable = pythonExecutable;
     }
 
     public Duration getCompileTimeout() {

@@ -27,8 +27,12 @@ class DockerJavaSandboxRunnerTest {
 
         DockerJavaSandboxRunner runner = new DockerJavaSandboxRunner(properties);
         JudgeLimits limits = new JudgeLimits(Duration.ofSeconds(8), Duration.ofSeconds(3), 65536, 65536);
+        LanguageSpec java = new com.example.javacoder.service.LanguageRegistry(properties)
+                .findById("java")
+                .orElseThrow();
 
         try (SandboxSession session = runner.createSession(
+                java,
                 """
                 import java.util.Scanner;
 

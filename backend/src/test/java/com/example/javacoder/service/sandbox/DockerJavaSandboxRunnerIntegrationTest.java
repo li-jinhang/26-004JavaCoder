@@ -3,6 +3,7 @@ package com.example.javacoder.service.sandbox;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import com.example.javacoder.service.LanguageRegistry;
 import java.io.IOException;
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeAll;
@@ -38,8 +39,10 @@ class DockerJavaSandboxRunnerIntegrationTest {
 
         DockerJavaSandboxRunner runner = new DockerJavaSandboxRunner(properties);
         JudgeLimits limits = new JudgeLimits(Duration.ofSeconds(8), Duration.ofSeconds(3), 65536, 65536);
+        LanguageSpec java = new LanguageRegistry(properties).findById("java").orElseThrow();
 
         try (SandboxSession session = runner.createSession(
+                java,
                 """
                 import java.util.Scanner;
 

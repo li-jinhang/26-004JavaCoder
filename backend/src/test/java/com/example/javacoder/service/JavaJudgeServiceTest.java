@@ -14,7 +14,8 @@ import org.junit.jupiter.api.Test;
 class JavaJudgeServiceTest {
 
     private final JudgeSandboxProperties properties = testProperties();
-    private final JavaJudgeService judgeService = new JavaJudgeService(new LocalJavaSandboxRunner(), properties);
+    private final LanguageRegistry languageRegistry = new LanguageRegistry(properties);
+    private final JavaJudgeService judgeService = new JavaJudgeService(new LocalJavaSandboxRunner(), properties, languageRegistry);
 
     @Test
     void judgesUtf8SourceWithChineseCharacters() {
@@ -80,6 +81,38 @@ class JavaJudgeServiceTest {
 
         assertThat(submission.status()).isEqualTo("Compile Error");
         assertThat(submission.message()).doesNotContain("\uFFFD");
+    }
+
+    @Test
+    void judgesPythonSource() {
+        Problem problem = new Problem(
+                3L,
+                "Python source",
+                "Easy",
+                List.of("language"),
+                "",
+                "",
+                "",
+                "",
+                "",
+                List.of(),
+                List.of(new TestCase("2 3\n", "5", false))
+        );
+        SubmissionRequest request = new SubmissionRequest(
+                3L,
+                "python",
+                """
+                import sys
+
+                a, b = map(int, sys.stdin.read().split())
+                print(a + b)
+                """
+        );
+
+        Submission submission = judgeService.judge(problem, request);
+
+        assertThat(submission.status()).isEqualTo("Accepted");
+        assertThat(submission.language()).isEqualTo("Python 3");
     }
 
     @Test
@@ -176,6 +209,7 @@ class JavaJudgeServiceTest {
     private JudgeSandboxProperties testProperties() {
         JudgeSandboxProperties sandboxProperties = new JudgeSandboxProperties();
         sandboxProperties.setMode("local");
+        sandboxProperties.setPythonExecutable("python");
         sandboxProperties.setRunTimeout(java.time.Duration.ofMillis(500));
         sandboxProperties.setCompileTimeout(java.time.Duration.ofSeconds(8));
         sandboxProperties.setMaxSourceBytes(65536);
