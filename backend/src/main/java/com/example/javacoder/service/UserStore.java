@@ -1,6 +1,7 @@
 package com.example.javacoder.service;
 
 import com.example.javacoder.model.CurrentUser;
+import com.example.javacoder.model.UserRole;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
@@ -44,19 +45,20 @@ public class UserStore {
         }
 
         StoredPassword storedPassword = hashPassword(password);
-        CurrentUser currentUser = new CurrentUser(userId.incrementAndGet(), cleanUsername, Instant.now());
+        CurrentUser currentUser = new CurrentUser(userId.incrementAndGet(), cleanUsername, UserRole.USER, Instant.now());
 
         try {
             jdbcTemplate.update(
                     """
-                    INSERT INTO users (id, username, normalized_username, password_salt, password_hash, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO users (id, username, normalized_username, password_salt, password_hash, role, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     currentUser.id(),
                     currentUser.username(),
                     normalizedName,
                     storedPassword.salt(),
                     storedPassword.hash(),
+                    currentUser.role().name(),
                     currentUser.createdAt().toString()
             );
         } catch (DataAccessException exception) {
@@ -99,7 +101,7 @@ public class UserStore {
         }
         List<CurrentUser> users = jdbcTemplate.query(
                 """
-                SELECT users.id, users.username, users.created_at
+                SELECT users.id, users.username, users.role, users.created_at
                 FROM auth_sessions
                 JOIN users ON users.id = auth_sessions.user_id
                 WHERE auth_sessions.token = ?
@@ -107,11 +109,61 @@ public class UserStore {
                 (resultSet, rowNumber) -> new CurrentUser(
                         resultSet.getLong("id"),
                         resultSet.getString("username"),
+                        UserRole.valueOf(resultSet.getString("role")),
                         Instant.parse(resultSet.getString("created_at"))
                 ),
                 token
         );
         return users.stream().findFirst();
+    }
+
+    public Optional<CurrentUser> findById(long id) {
+        List<CurrentUser> users = jdbcTemplate.query(
+                """
+                SELECT id, username, role, created_at
+                FROM users
+                WHERE id = ?
+                """,
+                (resultSet, rowNumber) -> new CurrentUser(
+                        resultSet.getLong("id"),
+                        resultSet.getString("username"),
+                        UserRole.valueOf(resultSet.getString("role")),
+                        Instant.parse(resultSet.getString("created_at"))
+                ),
+                id
+        );
+        return users.stream().findFirst();
+    }
+
+    public List<CurrentUser> searchUsers(String query) {
+        String cleanQuery = query == null ? "" : query.trim();
+        String normalizedQuery = "%" + cleanQuery.toLowerCase(Locale.ROOT) + "%";
+        String idQuery = "%" + cleanQuery + "%";
+        return jdbcTemplate.query(
+                """
+                SELECT id, username, role, created_at
+                FROM users
+                WHERE ? = ''
+                   OR CAST(id AS TEXT) LIKE ?
+                   OR normalized_username LIKE ?
+                ORDER BY id ASC
+                LIMIT 50
+                """,
+                (resultSet, rowNumber) -> new CurrentUser(
+                        resultSet.getLong("id"),
+                        resultSet.getString("username"),
+                        UserRole.valueOf(resultSet.getString("role")),
+                        Instant.parse(resultSet.getString("created_at"))
+                ),
+                cleanQuery,
+                idQuery,
+                normalizedQuery
+        );
+    }
+
+    public boolean deleteUser(long id) {
+        jdbcTemplate.update("DELETE FROM auth_sessions WHERE user_id = ?", id);
+        return jdbcTemplate.update("DELETE FROM users WHERE id = ?", id) > 0;
     }
 
     public void logout(String token) {
@@ -129,10 +181,12 @@ public class UserStore {
                     normalized_username TEXT NOT NULL UNIQUE,
                     password_salt TEXT NOT NULL,
                     password_hash TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'USER',
                     created_at TEXT NOT NULL
                 )
                 """
         );
+        ensureRoleColumn();
         jdbcTemplate.execute(
                 """
                 CREATE TABLE IF NOT EXISTS auth_sessions (
@@ -143,6 +197,19 @@ public class UserStore {
                 )
                 """
         );
+        ensureRegularUserRoles();
+    }
+
+    private void ensureRoleColumn() {
+        boolean hasRoleColumn = jdbcTemplate.queryForList("PRAGMA table_info(users)").stream()
+                .anyMatch(column -> "role".equals(column.get("name")));
+        if (!hasRoleColumn) {
+            jdbcTemplate.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'USER'");
+        }
+    }
+
+    private void ensureRegularUserRoles() {
+        jdbcTemplate.update("UPDATE users SET role = 'USER' WHERE role <> 'USER'");
     }
 
     private long currentMaxUserId() {
@@ -153,7 +220,7 @@ public class UserStore {
     private Optional<StoredUser> findStoredUser(String normalizedName) {
         List<StoredUser> users = jdbcTemplate.query(
                 """
-                SELECT id, username, password_salt, password_hash, created_at
+                SELECT id, username, password_salt, password_hash, role, created_at
                 FROM users
                 WHERE normalized_username = ?
                 """,
@@ -161,6 +228,7 @@ public class UserStore {
                         new CurrentUser(
                                 resultSet.getLong("id"),
                                 resultSet.getString("username"),
+                                UserRole.valueOf(resultSet.getString("role")),
                                 Instant.parse(resultSet.getString("created_at"))
                         ),
                         new StoredPassword(

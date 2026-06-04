@@ -182,6 +182,25 @@ java -jar target/javacoder-backend-0.0.1-SNAPSHOT.jar
 Environment=JAVACODER_SQLITE_PATH=/opt/javacoder/data/javacoder.sqlite
 ```
 
+管理员账号不写入 SQLite，默认从 `backend/src/main/resources/admin-users.json` 读取。文件格式如下：
+
+```json
+{
+  "admins": [
+    {
+      "username": "admin",
+      "password": "admin123"
+    }
+  ]
+}
+```
+
+生产部署时建议把管理员 JSON 放到独立数据目录，并通过环境变量指定：
+
+```bash
+export JAVACODER_ADMIN_ACCOUNTS=file:/opt/javacoder/data/admin-users.json
+```
+
 前端单独部署：
 
 ```bash

@@ -15,6 +15,8 @@
                 <p>当前用户</p>
                 <strong>{{ currentUser.username }}</strong>
               </div>
+              <span v-if="isAdmin" class="role-badge">管理员</span>
+              <button v-if="isAdmin" class="ghost-button compact-button" type="button" @click="openAdminPanel">用户管理</button>
               <button class="ghost-button compact-button" type="button" @click="logout">退出</button>
             </template>
             <template v-else>
@@ -122,6 +124,7 @@
           </article>
         </aside>
       </div>
+
     </section>
 
     <section v-else class="editor-view">
@@ -141,6 +144,7 @@
             <template v-if="currentUser">
               <span class="avatar-mark">{{ currentUser.username.slice(0, 1).toUpperCase() }}</span>
               <strong>{{ currentUser.username }}</strong>
+              <span v-if="isAdmin" class="role-badge">管理员</span>
               <button class="ghost-button compact-button" type="button" @click="logout">退出</button>
             </template>
             <template v-else>
@@ -238,6 +242,64 @@
         </section>
       </div>
     </section>
+
+    <div v-if="showAdminPanel && isAdmin" class="modal-backdrop" role="presentation" @click.self="closeAdminPanel">
+      <section class="admin-panel" role="dialog" aria-modal="true" aria-label="管理员用户管理">
+        <header class="admin-panel-head">
+          <div>
+            <p class="eyebrow">Admin Console</p>
+            <h2>用户管理</h2>
+          </div>
+          <button class="ghost-button icon-button" type="button" aria-label="关闭用户管理" @click="closeAdminPanel">
+            ×
+          </button>
+        </header>
+
+        <form class="admin-search" @submit.prevent="loadAdminUsers">
+          <label class="search-box">
+            <span>用户</span>
+            <input
+              v-model.trim="adminSearchQuery"
+              type="search"
+              placeholder="搜索用户 ID 或名称"
+              autocomplete="off"
+            />
+          </label>
+          <button class="primary-button" type="submit" :disabled="loadingAdminUsers">
+            {{ loadingAdminUsers ? '搜索中...' : '搜索' }}
+          </button>
+        </form>
+
+        <div v-if="adminMessage" class="admin-message">{{ adminMessage }}</div>
+        <div v-if="loadingAdminUsers" class="loading-panel compact-panel">正在加载用户...</div>
+        <div v-else-if="adminUsers.length === 0" class="catalog-empty admin-empty">
+          <strong>没有找到用户</strong>
+          <span>换个 ID 或用户名再试试</span>
+        </div>
+        <div v-else class="admin-user-list">
+          <article v-for="user in adminUsers" :key="user.id" class="admin-user-row">
+            <div class="admin-user-main">
+              <span class="avatar-mark">{{ user.username.slice(0, 1).toUpperCase() }}</span>
+              <div>
+                <strong>{{ user.username }}</strong>
+                <p>ID {{ user.id }} · {{ formatTime(user.createdAt) }}</p>
+              </div>
+            </div>
+            <span :class="['role-badge', { admin: user.role === 'ADMIN' }]">
+              {{ formatUserRole(user.role) }}
+            </span>
+            <button
+              class="ghost-button compact-button danger-button"
+              type="button"
+              :disabled="user.currentUser || deletingUserId === user.id"
+              @click="deleteAdminUser(user)"
+            >
+              {{ deletingUserId === user.id ? '删除中...' : user.currentUser ? '当前账号' : '删除' }}
+            </button>
+          </article>
+        </div>
+      </section>
+    </div>
 
     <div v-if="showSolutionDialog" class="modal-backdrop" role="presentation" @click.self="closeSolutionDialog">
       <section class="solution-dialog" role="dialog" aria-modal="true" aria-labelledby="solution-title">
@@ -347,12 +409,19 @@ const authForm = ref({
 const authMessage = ref('')
 const authenticating = ref(false)
 const pendingAuthAction = ref(null)
+const showAdminPanel = ref(false)
+const adminSearchQuery = ref('')
+const adminUsers = ref([])
+const loadingAdminUsers = ref(false)
+const adminMessage = ref('')
+const deletingUserId = ref(null)
 let submissionPollTimer = null
 
 const difficultyOptions = ['全部', '简单', '中等', '困难']
 const activeProblemId = computed(() => selectedProblem.value?.id)
 const acceptedProblemCount = computed(() => problems.value.filter((problem) => problem.acceptedCount > 0).length)
 const currentSolution = computed(() => selectedProblem.value?.referenceSolution || '')
+const isAdmin = computed(() => currentUser.value?.role === 'ADMIN')
 const filteredProblems = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase()
 
@@ -426,6 +495,65 @@ async function restoreSession() {
     authToken.value = ''
     currentUser.value = null
     localStorage.removeItem('javacoder-auth-token')
+  }
+}
+
+async function openAdminPanel() {
+  if (!isAdmin.value) {
+    return
+  }
+
+  showAdminPanel.value = true
+  await loadAdminUsers()
+}
+
+function closeAdminPanel() {
+  showAdminPanel.value = false
+  adminMessage.value = ''
+}
+
+async function loadAdminUsers() {
+  if (!isAdmin.value) {
+    return
+  }
+
+  loadingAdminUsers.value = true
+  adminMessage.value = ''
+  try {
+    const query = encodeURIComponent(adminSearchQuery.value.trim())
+    adminUsers.value = await requestJson(`/api/admin/users?query=${query}`, {
+      headers: authHeaders()
+    })
+  } catch (error) {
+    adminMessage.value = error.message
+  } finally {
+    loadingAdminUsers.value = false
+  }
+}
+
+async function deleteAdminUser(user) {
+  if (!isAdmin.value || user.currentUser) {
+    return
+  }
+
+  const confirmed = window.confirm(`确定删除用户 ${user.username}（ID ${user.id}）吗？此操作不可恢复。`)
+  if (!confirmed) {
+    return
+  }
+
+  deletingUserId.value = user.id
+  adminMessage.value = ''
+  try {
+    await requestJson(`/api/admin/users/${user.id}`, {
+      method: 'DELETE',
+      headers: authHeaders()
+    })
+    adminUsers.value = adminUsers.value.filter((item) => item.id !== user.id)
+    adminMessage.value = `已删除用户 ${user.username}。`
+  } catch (error) {
+    adminMessage.value = error.message
+  } finally {
+    deletingUserId.value = null
   }
 }
 
@@ -599,6 +727,7 @@ async function submitAuth() {
   authMessage.value = ''
   errorMessage.value = ''
   let actionToRun = null
+  let shouldOpenAdminPanel = false
 
   try {
     const authResult = await requestJson(`/api/auth/${authMode.value}`, {
@@ -610,13 +739,18 @@ async function submitAuth() {
     authToken.value = authResult.token
     currentUser.value = authResult.user
     localStorage.setItem('javacoder-auth-token', authResult.token)
-    actionToRun = pendingAuthAction.value
+    shouldOpenAdminPanel = authResult.user.role === 'ADMIN'
+    actionToRun = shouldOpenAdminPanel ? null : pendingAuthAction.value
     pendingAuthAction.value = null
     closeAuthDialog()
   } catch (error) {
     authMessage.value = error.message
   } finally {
     authenticating.value = false
+  }
+
+  if (shouldOpenAdminPanel) {
+    await openAdminPanel()
   }
 
   if (actionToRun) {
@@ -629,6 +763,9 @@ async function logout() {
   authToken.value = ''
   currentUser.value = null
   pendingAuthAction.value = null
+  showAdminPanel.value = false
+  adminUsers.value = []
+  adminMessage.value = ''
   localStorage.removeItem('javacoder-auth-token')
   authForm.value.password = ''
 
@@ -713,6 +850,13 @@ function displayStatus(status) {
     Pending: '等待评测',
     Judging: '评测中'
   }[status] || status
+}
+
+function formatUserRole(role) {
+  return {
+    ADMIN: '管理员',
+    USER: '普通用户'
+  }[role] || role
 }
 
 function formatTime(value) {
@@ -981,6 +1125,27 @@ button {
   font-weight: 900;
 }
 
+.role-badge {
+  min-height: 28px;
+  border: 1px solid #d0b47c;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #fff0c4;
+  color: #704b0c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.role-badge.admin {
+  border-color: #9b7a34;
+  background: #202326;
+  color: #fff8ea;
+}
+
 .home-stats div {
   min-height: 94px;
   padding: 18px;
@@ -1131,6 +1296,108 @@ button {
   padding: 20px;
   background: #202326;
   color: #fff8ea;
+}
+
+.admin-panel {
+  width: min(920px, 100%);
+  max-height: min(780px, calc(100vh - 56px));
+  max-width: 1360px;
+  margin: 0 auto;
+  border: 1px solid rgba(32, 35, 38, 0.14);
+  border-radius: 8px;
+  padding: 20px;
+  background: rgba(255, 253, 247, 0.9);
+  box-shadow: 0 20px 54px rgba(64, 55, 41, 0.1);
+  overflow: auto;
+}
+
+.admin-panel-head,
+.admin-search,
+.admin-user-row,
+.admin-user-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-panel-head,
+.admin-user-row {
+  justify-content: space-between;
+}
+
+.admin-panel-head {
+  margin-bottom: 16px;
+}
+
+.admin-panel-head h2 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.admin-search {
+  align-items: stretch;
+  margin-bottom: 14px;
+}
+
+.admin-search .search-box {
+  flex: 1;
+}
+
+.admin-message {
+  border: 1px solid #d6cabb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: #fffaf0;
+  color: #59625f;
+  font-weight: 900;
+}
+
+.compact-panel {
+  margin: 0;
+}
+
+.admin-empty {
+  min-height: 128px;
+}
+
+.admin-user-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-user-row {
+  min-height: 72px;
+  border: 1px solid #e0d5c5;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fffdf7;
+}
+
+.admin-user-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-user-main div {
+  min-width: 0;
+}
+
+.admin-user-main strong,
+.admin-user-main p {
+  margin: 0;
+}
+
+.admin-user-main p {
+  margin-top: 4px;
+  color: #6f7774;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.danger-button {
+  border-color: #c78980;
+  color: #972a1f;
 }
 
 .catalog-empty {
@@ -1578,6 +1845,16 @@ button:disabled {
     width: 100%;
     flex-wrap: wrap;
     justify-content: flex-start;
+  }
+
+  .admin-search,
+  .admin-user-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-user-main {
+    width: 100%;
   }
 
   .home-stats,

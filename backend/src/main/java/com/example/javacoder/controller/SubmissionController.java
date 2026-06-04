@@ -3,6 +3,7 @@ package com.example.javacoder.controller;
 import com.example.javacoder.model.Submission;
 import com.example.javacoder.model.SubmissionRequest;
 import com.example.javacoder.repository.ProblemRepository;
+import com.example.javacoder.service.AdminAccountStore;
 import com.example.javacoder.service.JudgeWorker;
 import com.example.javacoder.service.SubmissionStore;
 import com.example.javacoder.service.UserStore;
@@ -27,17 +28,20 @@ public class SubmissionController {
     private final JudgeWorker judgeWorker;
     private final SubmissionStore submissionStore;
     private final UserStore userStore;
+    private final AdminAccountStore adminAccountStore;
 
     public SubmissionController(
             ProblemRepository problemRepository,
             JudgeWorker judgeWorker,
             SubmissionStore submissionStore,
-            UserStore userStore
+            UserStore userStore,
+            AdminAccountStore adminAccountStore
     ) {
         this.problemRepository = problemRepository;
         this.judgeWorker = judgeWorker;
         this.submissionStore = submissionStore;
         this.userStore = userStore;
+        this.adminAccountStore = adminAccountStore;
     }
 
     @GetMapping
@@ -57,7 +61,8 @@ public class SubmissionController {
             @RequestBody SubmissionRequest request,
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization
     ) {
-        if (userStore.findByToken(extractBearerToken(authorization)).isEmpty()) {
+        String token = extractBearerToken(authorization);
+        if (userStore.findByToken(token).isEmpty() && adminAccountStore.findByToken(token).isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "请先登录后再提交代码。"));
         }
 
