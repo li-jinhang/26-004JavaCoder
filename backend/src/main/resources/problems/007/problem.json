@@ -45,5 +45,8 @@
       "hidden": true
     }
   ],
-  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        long first = 1;\n        long second = 1;\n\n        for (int i = 2; i <= n; i++) {\n            long next = first + second;\n            first = second;\n            second = next;\n        }\n\n        System.out.println(second);\n    }\n}"
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        long first = 1;\n        long second = 1;\n\n        for (int i = 2; i <= n; i++) {\n            long next = first + second;\n            first = second;\n            second = next;\n        }\n\n        System.out.println(second);\n    }\n}",
+  "referenceSolutions": {
+    "python": "import sys\n\nn = int(sys.stdin.read().strip())\nfirst = second = 1\n\nfor _ in range(2, n + 1):\n    first, second = second, first + second\n\nprint(second)\n"
+  }
 }

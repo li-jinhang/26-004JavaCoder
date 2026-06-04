@@ -45,5 +45,8 @@
       "hidden": true
     }
   ],
-  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String s = scanner.hasNextLine() ? scanner.nextLine() : \"\";\n        Map<Character, Integer> lastIndex = new HashMap<>();\n        int left = 0;\n        int best = 0;\n\n        for (int right = 0; right < s.length(); right++) {\n            char ch = s.charAt(right);\n            if (lastIndex.containsKey(ch)) {\n                left = Math.max(left, lastIndex.get(ch) + 1);\n            }\n            lastIndex.put(ch, right);\n            best = Math.max(best, right - left + 1);\n        }\n\n        System.out.println(best);\n    }\n}"
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String s = scanner.hasNextLine() ? scanner.nextLine() : \"\";\n        Map<Character, Integer> lastIndex = new HashMap<>();\n        int left = 0;\n        int best = 0;\n\n        for (int right = 0; right < s.length(); right++) {\n            char ch = s.charAt(right);\n            if (lastIndex.containsKey(ch)) {\n                left = Math.max(left, lastIndex.get(ch) + 1);\n            }\n            lastIndex.put(ch, right);\n            best = Math.max(best, right - left + 1);\n        }\n\n        System.out.println(best);\n    }\n}",
+  "referenceSolutions": {
+    "python": "import sys\n\ns = sys.stdin.readline().rstrip('\\n')\nlast_index = {}\nleft = 0\nbest = 0\n\nfor right, ch in enumerate(s):\n    if ch in last_index:\n        left = max(left, last_index[ch] + 1)\n    last_index[ch] = right\n    best = max(best, right - left + 1)\n\nprint(best)\n"
+  }
 }

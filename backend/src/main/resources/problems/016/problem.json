@@ -45,5 +45,8 @@
       "hidden": true
     }
   ],
-  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int q = scanner.nextInt();\n        long[] prefix = new long[n + 1];\n        for (int i = 0; i < n; i++) {\n            prefix[i + 1] = prefix[i] + scanner.nextLong();\n        }\n\n        StringBuilder output = new StringBuilder();\n        for (int i = 0; i < q; i++) {\n            int left = scanner.nextInt();\n            int right = scanner.nextInt();\n            output.append(prefix[right + 1] - prefix[left]).append('\\n');\n        }\n\n        System.out.print(output);\n    }\n}"
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int q = scanner.nextInt();\n        long[] prefix = new long[n + 1];\n        for (int i = 0; i < n; i++) {\n            prefix[i + 1] = prefix[i] + scanner.nextLong();\n        }\n\n        StringBuilder output = new StringBuilder();\n        for (int i = 0; i < q; i++) {\n            int left = scanner.nextInt();\n            int right = scanner.nextInt();\n            output.append(prefix[right + 1] - prefix[left]).append('\\n');\n        }\n\n        System.out.print(output);\n    }\n}",
+  "referenceSolutions": {
+    "python": "import sys\n\ndata = list(map(int, sys.stdin.read().split()))\nn, q = data[0], data[1]\nnums = data[2:2 + n]\nprefix = [0]\n\nfor num in nums:\n    prefix.append(prefix[-1] + num)\n\nanswers = []\nindex = 2 + n\nfor _ in range(q):\n    left, right = data[index], data[index + 1]\n    index += 2\n    answers.append(str(prefix[right + 1] - prefix[left]))\n\nprint('\\n'.join(answers))\n"
+  }
 }

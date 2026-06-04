@@ -45,5 +45,8 @@
       "hidden": true
     }
   ],
-  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int minPrice = Integer.MAX_VALUE;\n        int bestProfit = 0;\n\n        for (int i = 0; i < n; i++) {\n            int price = scanner.nextInt();\n            minPrice = Math.min(minPrice, price);\n            bestProfit = Math.max(bestProfit, price - minPrice);\n        }\n\n        System.out.println(bestProfit);\n    }\n}"
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int minPrice = Integer.MAX_VALUE;\n        int bestProfit = 0;\n\n        for (int i = 0; i < n; i++) {\n            int price = scanner.nextInt();\n            minPrice = Math.min(minPrice, price);\n            bestProfit = Math.max(bestProfit, price - minPrice);\n        }\n\n        System.out.println(bestProfit);\n    }\n}",
+  "referenceSolutions": {
+    "python": "import sys\n\ndata = list(map(int, sys.stdin.read().split()))\nn = data[0]\nprices = data[1:1 + n]\nmin_price = 10**30\nbest_profit = 0\n\nfor price in prices:\n    min_price = min(min_price, price)\n    best_profit = max(best_profit, price - min_price)\n\nprint(best_profit)\n"
+  }
 }

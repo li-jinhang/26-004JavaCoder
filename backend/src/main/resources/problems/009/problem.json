@@ -45,5 +45,8 @@
       "hidden": true
     }
   ],
-  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = scanner.nextInt();\n        }\n\n        int write = 0;\n        for (int num : nums) {\n            if (num != 0) {\n                nums[write++] = num;\n            }\n        }\n        while (write < n) {\n            nums[write++] = 0;\n        }\n\n        StringBuilder output = new StringBuilder();\n        for (int i = 0; i < n; i++) {\n            if (i > 0) {\n                output.append(' ');\n            }\n            output.append(nums[i]);\n        }\n        System.out.println(output);\n    }\n}"
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = scanner.nextInt();\n        }\n\n        int write = 0;\n        for (int num : nums) {\n            if (num != 0) {\n                nums[write++] = num;\n            }\n        }\n        while (write < n) {\n            nums[write++] = 0;\n        }\n\n        StringBuilder output = new StringBuilder();\n        for (int i = 0; i < n; i++) {\n            if (i > 0) {\n                output.append(' ');\n            }\n            output.append(nums[i]);\n        }\n        System.out.println(output);\n    }\n}",
+  "referenceSolutions": {
+    "python": "import sys\n\ndata = list(map(int, sys.stdin.read().split()))\nn = data[0]\nnums = data[1:1 + n]\nnon_zero = [num for num in nums if num != 0]\nresult = non_zero + [0] * (n - len(non_zero))\n\nprint(' '.join(map(str, result)))\n"
+  }
 }

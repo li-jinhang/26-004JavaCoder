@@ -45,5 +45,8 @@
       "hidden": true
     }
   ],
-  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        long best = Long.MIN_VALUE;\n        long current = 0;\n\n        for (int i = 0; i < n; i++) {\n            int num = scanner.nextInt();\n            current = Math.max(num, current + num);\n            best = Math.max(best, current);\n        }\n\n        System.out.println(best);\n    }\n}"
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        long best = Long.MIN_VALUE;\n        long current = 0;\n\n        for (int i = 0; i < n; i++) {\n            int num = scanner.nextInt();\n            current = Math.max(num, current + num);\n            best = Math.max(best, current);\n        }\n\n        System.out.println(best);\n    }\n}",
+  "referenceSolutions": {
+    "python": "import sys\n\ndata = list(map(int, sys.stdin.read().split()))\nn = data[0]\nnums = data[1:1 + n]\ncurrent = nums[0]\nbest = nums[0]\n\nfor num in nums[1:]:\n    current = max(num, current + num)\n    best = max(best, current)\n\nprint(best)\n"
+  }
 }

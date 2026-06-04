@@ -45,5 +45,8 @@
       "hidden": true
     }
   ],
-  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int target = scanner.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = scanner.nextInt();\n        }\n\n        Map<Integer, Integer> seen = new HashMap<>();\n        for (int i = 0; i < n; i++) {\n            int need = target - nums[i];\n            if (seen.containsKey(need)) {\n                System.out.println(seen.get(need) + \" \" + i);\n                return;\n            }\n            seen.put(nums[i], i);\n        }\n    }\n}"
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int n = scanner.nextInt();\n        int target = scanner.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = scanner.nextInt();\n        }\n\n        Map<Integer, Integer> seen = new HashMap<>();\n        for (int i = 0; i < n; i++) {\n            int need = target - nums[i];\n            if (seen.containsKey(need)) {\n                System.out.println(seen.get(need) + \" \" + i);\n                return;\n            }\n            seen.put(nums[i], i);\n        }\n    }\n}",
+  "referenceSolutions": {
+    "python": "import sys\n\ndata = list(map(int, sys.stdin.read().split()))\nn, target = data[0], data[1]\nnums = data[2:2 + n]\nseen = {}\n\nfor i, num in enumerate(nums):\n    need = target - num\n    if need in seen:\n        print(seen[need], i)\n        break\n    seen[num] = i\n"
+  }
 }

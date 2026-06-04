@@ -45,5 +45,8 @@
       "hidden": true
     }
   ],
-  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String s = scanner.nextLine();\n        String t = scanner.nextLine();\n\n        if (s.length() != t.length()) {\n            System.out.println(false);\n            return;\n        }\n\n        int[] counts = new int[26];\n        for (int i = 0; i < s.length(); i++) {\n            counts[s.charAt(i) - 'a']++;\n            counts[t.charAt(i) - 'a']--;\n        }\n\n        for (int count : counts) {\n            if (count != 0) {\n                System.out.println(false);\n                return;\n            }\n        }\n\n        System.out.println(true);\n    }\n}"
+  "referenceSolution": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        String s = scanner.nextLine();\n        String t = scanner.nextLine();\n\n        if (s.length() != t.length()) {\n            System.out.println(false);\n            return;\n        }\n\n        int[] counts = new int[26];\n        for (int i = 0; i < s.length(); i++) {\n            counts[s.charAt(i) - 'a']++;\n            counts[t.charAt(i) - 'a']--;\n        }\n\n        for (int count : counts) {\n            if (count != 0) {\n                System.out.println(false);\n                return;\n            }\n        }\n\n        System.out.println(true);\n    }\n}",
+  "referenceSolutions": {
+    "python": "from collections import Counter\nimport sys\n\nlines = sys.stdin.read().splitlines()\ns = lines[0] if len(lines) > 0 else ''\nt = lines[1] if len(lines) > 1 else ''\n\nprint('true' if Counter(s) == Counter(t) else 'false')\n"
+  }
 }
