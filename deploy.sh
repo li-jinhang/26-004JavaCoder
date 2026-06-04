@@ -4,7 +4,9 @@ set -Eeuo pipefail
 # Linux deployment script for JavaCoder.
 # Override settings with environment variables, for example:
 #   BACKEND_SERVICE=javacoder-backend FRONTEND_DEPLOY_DIR=/usr/share/nginx/html ./deploy.sh
-# On BaoTa/BT Panel, the script auto-enters a safe build-only backend mode.
+# On BaoTa/BT Panel, the script defaults to deploying the backend jar and
+# restarting it with java -jar. Override BACKEND_RUN_MODE/DEPLOY_BACKEND_JAR
+# when the backend is managed by another process manager.
 
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 
@@ -16,9 +18,9 @@ else
 fi
 
 if [[ "${IS_BAOTA_MODE}" == "true" ]]; then
-  DEFAULT_BACKEND_RUN_MODE="none"
-  DEFAULT_DEPLOY_BACKEND_JAR="false"
-  DEFAULT_HEALTHCHECK_URL=""
+  DEFAULT_BACKEND_RUN_MODE="jar"
+  DEFAULT_DEPLOY_BACKEND_JAR="true"
+  DEFAULT_HEALTHCHECK_URL="http://127.0.0.1:26904/api/health"
   DEFAULT_MAVEN_CLEAN="false"
 else
   DEFAULT_BACKEND_RUN_MODE="systemd"
@@ -30,12 +32,14 @@ fi
 BACKEND_DEPLOY_DIR="${BACKEND_DEPLOY_DIR:-/opt/javacoder/backend}"
 BACKEND_JAR_NAME="${BACKEND_JAR_NAME:-javacoder-backend.jar}"
 BACKEND_SERVICE="${BACKEND_SERVICE:-javacoder-backend}"
+BACKEND_PORT="${BACKEND_PORT:-26904}"
 BACKEND_RUN_MODE="${BACKEND_RUN_MODE:-${DEFAULT_BACKEND_RUN_MODE}}" # systemd, jar, or none
 BACKEND_JAVA_OPTS="${BACKEND_JAVA_OPTS:-}"
 BACKEND_PID_FILE="${BACKEND_PID_FILE:-/opt/javacoder/backend/javacoder-backend.pid}"
 BACKEND_LOG_FILE="${BACKEND_LOG_FILE:-/opt/javacoder/backend/javacoder-backend.log}"
 JAVACODER_SQLITE_PATH="${JAVACODER_SQLITE_PATH:-/opt/javacoder/data/javacoder.sqlite}"
 DEPLOY_BACKEND_JAR="${DEPLOY_BACKEND_JAR:-${DEFAULT_DEPLOY_BACKEND_JAR}}"
+BACKEND_STOP_PORT_PROCESS="${BACKEND_STOP_PORT_PROCESS:-auto}" # auto, true, or false
 MAVEN_CLEAN="${MAVEN_CLEAN:-${DEFAULT_MAVEN_CLEAN}}"
 
 FRONTEND_DEPLOY_DIR="${FRONTEND_DEPLOY_DIR:-${APP_DIR}/frontend/dist}"
@@ -161,6 +165,45 @@ restart_backend_systemd() {
   run_sudo systemctl restart "${BACKEND_SERVICE}"
 }
 
+backend_port_pids() {
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -ti "tcp:${BACKEND_PORT}" -sTCP:LISTEN 2>/dev/null || true
+  elif command -v fuser >/dev/null 2>&1; then
+    fuser "${BACKEND_PORT}/tcp" 2>/dev/null || true
+  elif command -v ss >/dev/null 2>&1; then
+    ss -ltnp "sport = :${BACKEND_PORT}" 2>/dev/null \
+      | sed -nE 's/.*pid=([0-9]+),.*/\1/p' \
+      | sort -u
+  fi
+}
+
+stop_backend_port_processes() {
+  if [[ "${BACKEND_STOP_PORT_PROCESS}" == "false" ]]; then
+    return 0
+  fi
+  if [[ "${BACKEND_STOP_PORT_PROCESS}" == "auto" && "${BACKEND_RUN_MODE}" != "jar" ]]; then
+    return 0
+  fi
+
+  local pids
+  pids="$(backend_port_pids | tr '\n' ' ' | xargs || true)"
+  if [[ -z "${pids}" ]]; then
+    return 0
+  fi
+
+  log "Stopping process(es) listening on backend port ${BACKEND_PORT}: ${pids}"
+  for pid in ${pids}; do
+    if [[ "${pid}" =~ ^[0-9]+$ ]]; then
+      run_sudo kill "${pid}" || true
+    fi
+  done
+  sleep 3
+
+  local remaining
+  remaining="$(backend_port_pids | tr '\n' ' ' | xargs || true)"
+  [[ -z "${remaining}" ]] || fail "Backend port ${BACKEND_PORT} is still in use by process(es): ${remaining}"
+}
+
 restart_backend_jar() {
   local target_jar
   target_jar="${BACKEND_DEPLOY_DIR}/${BACKEND_JAR_NAME}"
@@ -177,6 +220,8 @@ restart_backend_jar() {
       sleep 3
     fi
   fi
+
+  stop_backend_port_processes
 
   if [[ "${USE_SUDO}" == "true" || ( "${USE_SUDO}" == "auto" && "${EUID}" -ne 0 ) ]]; then
     sudo sh -c "JAVACODER_SQLITE_PATH='${JAVACODER_SQLITE_PATH}' nohup java ${BACKEND_JAVA_OPTS} -jar '${target_jar}' >> '${BACKEND_LOG_FILE}' 2>&1 & echo \$! > '${BACKEND_PID_FILE}'"
@@ -224,7 +269,7 @@ wait_for_healthcheck() {
 
 main() {
   if [[ "${IS_BAOTA_MODE}" == "true" ]]; then
-    log "BaoTa/BT Panel mode enabled: backend restart is disabled unless BACKEND_RUN_MODE is set"
+    log "BaoTa/BT Panel mode enabled: backend jar deployment and java -jar restart are enabled by default"
   fi
   check_prerequisites
   install_dependencies
