@@ -12,17 +12,25 @@ import com.example.javacoder.service.sandbox.JudgeLimits;
 import com.example.javacoder.service.sandbox.SandboxProcessResult;
 import com.example.javacoder.service.sandbox.SandboxRunner;
 import com.example.javacoder.service.sandbox.SandboxSession;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 class JudgeWorkerTest {
 
+    @TempDir
+    Path tempDir;
+
     @Test
     void returnsPendingSubmissionAndUpdatesItAfterBackgroundJudging() {
-        SubmissionStore submissionStore = new SubmissionStore();
+        SubmissionStore submissionStore = new SubmissionStore(sqliteJdbcTemplate(), new ObjectMapper());
         JavaJudgeService judgeService = new JavaJudgeService(new AcceptingSandboxRunner(), new JudgeSandboxProperties());
         JudgeWorker judgeWorker = new JudgeWorker(judgeService, submissionStore);
         Problem problem = new Problem(
@@ -58,6 +66,13 @@ class JudgeWorkerTest {
         });
 
         judgeWorker.close();
+    }
+
+    private JdbcTemplate sqliteJdbcTemplate() {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName("org.sqlite.JDBC");
+        dataSource.setUrl("jdbc:sqlite:" + tempDir.resolve("javacoder-test.sqlite"));
+        return new JdbcTemplate(dataSource);
     }
 
     private static class AcceptingSandboxRunner implements SandboxRunner {

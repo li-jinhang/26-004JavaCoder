@@ -6,14 +6,15 @@ import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -24,22 +25,45 @@ public class UserStore {
     private static final int PBKDF2_ITERATIONS = 120_000;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    private final AtomicLong userId = new AtomicLong(100);
-    private final ConcurrentMap<String, StoredUser> usersByNormalizedName = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, CurrentUser> sessionsByToken = new ConcurrentHashMap<>();
+    private final JdbcTemplate jdbcTemplate;
+    private final AtomicLong userId;
+
+    public UserStore(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+        initializeSchema();
+        this.userId = new AtomicLong(Math.max(100, currentMaxUserId()));
+    }
 
     public CurrentUser register(String username, String password) {
         String cleanUsername = normalizeVisibleUsername(username);
         validatePassword(password);
 
         String normalizedName = normalizeLookupName(cleanUsername);
+        if (findStoredUser(normalizedName).isPresent()) {
+            throw new IllegalArgumentException("用户名已存在。");
+        }
+
         StoredPassword storedPassword = hashPassword(password);
         CurrentUser currentUser = new CurrentUser(userId.incrementAndGet(), cleanUsername, Instant.now());
-        StoredUser storedUser = new StoredUser(currentUser, storedPassword);
 
-        StoredUser existing = usersByNormalizedName.putIfAbsent(normalizedName, storedUser);
-        if (existing != null) {
-            throw new IllegalArgumentException("用户名已存在。");
+        try {
+            jdbcTemplate.update(
+                    """
+                    INSERT INTO users (id, username, normalized_username, password_salt, password_hash, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    currentUser.id(),
+                    currentUser.username(),
+                    normalizedName,
+                    storedPassword.salt(),
+                    storedPassword.hash(),
+                    currentUser.createdAt().toString()
+            );
+        } catch (DataAccessException exception) {
+            if (isUsernameUniqueConstraint(exception)) {
+                throw new IllegalArgumentException("用户名已存在。");
+            }
+            throw exception;
         }
 
         return currentUser;
@@ -50,17 +74,22 @@ public class UserStore {
             return Optional.empty();
         }
 
-        StoredUser storedUser = usersByNormalizedName.get(normalizeLookupName(username));
-        if (storedUser == null || !verifyPassword(password, storedUser.password())) {
+        Optional<StoredUser> storedUser = findStoredUser(normalizeLookupName(username));
+        if (storedUser.isEmpty() || !verifyPassword(password, storedUser.orElseThrow().password())) {
             return Optional.empty();
         }
 
-        return Optional.of(storedUser.user());
+        return Optional.of(storedUser.orElseThrow().user());
     }
 
     public String createSession(CurrentUser user) {
         String token = UUID.randomUUID() + "-" + UUID.randomUUID();
-        sessionsByToken.put(token, user);
+        jdbcTemplate.update(
+                "INSERT INTO auth_sessions (token, user_id, created_at) VALUES (?, ?, ?)",
+                token,
+                user.id(),
+                Instant.now().toString()
+        );
         return token;
     }
 
@@ -68,13 +97,85 @@ public class UserStore {
         if (token == null || token.isBlank()) {
             return Optional.empty();
         }
-        return Optional.ofNullable(sessionsByToken.get(token));
+        List<CurrentUser> users = jdbcTemplate.query(
+                """
+                SELECT users.id, users.username, users.created_at
+                FROM auth_sessions
+                JOIN users ON users.id = auth_sessions.user_id
+                WHERE auth_sessions.token = ?
+                """,
+                (resultSet, rowNumber) -> new CurrentUser(
+                        resultSet.getLong("id"),
+                        resultSet.getString("username"),
+                        Instant.parse(resultSet.getString("created_at"))
+                ),
+                token
+        );
+        return users.stream().findFirst();
     }
 
     public void logout(String token) {
         if (token != null) {
-            sessionsByToken.remove(token);
+            jdbcTemplate.update("DELETE FROM auth_sessions WHERE token = ?", token);
         }
+    }
+
+    private void initializeSchema() {
+        jdbcTemplate.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY,
+                    username TEXT NOT NULL,
+                    normalized_username TEXT NOT NULL UNIQUE,
+                    password_salt TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+        );
+        jdbcTemplate.execute(
+                """
+                CREATE TABLE IF NOT EXISTS auth_sessions (
+                    token TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+                """
+        );
+    }
+
+    private long currentMaxUserId() {
+        Long maxId = jdbcTemplate.queryForObject("SELECT COALESCE(MAX(id), 100) FROM users", Long.class);
+        return maxId == null ? 100 : maxId;
+    }
+
+    private Optional<StoredUser> findStoredUser(String normalizedName) {
+        List<StoredUser> users = jdbcTemplate.query(
+                """
+                SELECT id, username, password_salt, password_hash, created_at
+                FROM users
+                WHERE normalized_username = ?
+                """,
+                (resultSet, rowNumber) -> new StoredUser(
+                        new CurrentUser(
+                                resultSet.getLong("id"),
+                                resultSet.getString("username"),
+                                Instant.parse(resultSet.getString("created_at"))
+                        ),
+                        new StoredPassword(
+                                resultSet.getString("password_salt"),
+                                resultSet.getString("password_hash")
+                        )
+                ),
+                normalizedName
+        );
+        return users.stream().findFirst();
+    }
+
+    private boolean isUsernameUniqueConstraint(DataAccessException exception) {
+        String message = exception.getMessage();
+        return message != null && message.contains("users.normalized_username");
     }
 
     private String normalizeVisibleUsername(String username) {

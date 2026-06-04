@@ -10,13 +10,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Service;
 
 @Service
 public class JudgeWorker implements AutoCloseable {
 
-    private final AtomicLong submissionId = new AtomicLong(1000);
     private final JavaJudgeService javaJudgeService;
     private final SubmissionStore submissionStore;
     private final ExecutorService executorService;
@@ -29,7 +27,7 @@ public class JudgeWorker implements AutoCloseable {
 
     public Submission enqueue(Problem problem, SubmissionRequest request) {
         Submission pending = new Submission(
-                submissionId.incrementAndGet(),
+                submissionStore.nextId(),
                 problem.id(),
                 problem.title(),
                 request.language() == null ? "Java" : request.language(),

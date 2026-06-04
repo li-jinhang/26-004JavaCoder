@@ -5,6 +5,10 @@ spring:
   application:
     name: javacoder-backend
 
+javacoder:
+  storage:
+    sqlite-path: ${JAVACODER_SQLITE_PATH:./data/javacoder.sqlite}
+
 judge:
   sandbox:
     mode: docker

@@ -13,6 +13,12 @@ backend/target/
 *.war
 *.ear
 
+# Local SQLite storage
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
 # Node.js
 frontend/node_modules/
 frontend/dist/

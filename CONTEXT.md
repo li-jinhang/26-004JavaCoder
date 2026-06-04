@@ -315,7 +315,7 @@ POST /api/submissions
 - 当前判题会真实调用本机 `javac` 和 `java`。运行后端的机器必须安装 JDK，而不仅是 JRE。
 - `JavaJudgeService` 的编译超时为 8 秒，单个用例运行超时为 3 秒。
 - 隐藏用例参与判题，但不会把输入、期望输出、实际输出返回给前端。
-- 目前没有数据库、用户系统、鉴权、题目管理后台或生产级沙箱。
+- 题目仍由资源文件加载；用户、登录会话和提交记录已使用 SQLite 持久化；尚无题目管理后台或生产级沙箱。
 - `frontend/dist` 是构建产物。修改前端源码后运行 `npm run build` 会更新它。
 - 根目录当前不是 Git 仓库，无法依赖 `git status` 区分用户改动。
 
@@ -324,6 +324,6 @@ POST /api/submissions
 - 增加 Maven Wrapper，降低后端启动门槛。
 - 增加后端单元测试，覆盖判题服务、题目接口和提交接口。
 - 增加前端组件拆分，把 `App.vue` 中的三栏 UI 拆成更小组件。
-- 接入数据库，持久化题目、提交记录和用户。
+- 按需从 SQLite 迁移到 MySQL/PostgreSQL，并持久化题目管理数据。
 - 将判题服务迁移到隔离 worker，并用容器或 microVM 做生产级沙箱。
 - 增加 Docker Compose，统一启动前后端和未来数据库。

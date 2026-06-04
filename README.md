@@ -169,6 +169,19 @@ mvn clean package
 java -jar target/javacoder-backend-0.0.1-SNAPSHOT.jar
 ```
 
+后端默认使用 SQLite 持久化用户、密码哈希、登录会话和提交记录，默认数据文件为 `./data/javacoder.sqlite`。服务器部署时建议固定到不会被发布流程覆盖的位置：
+
+```bash
+export JAVACODER_SQLITE_PATH=/opt/javacoder/data/javacoder.sqlite
+java -jar target/javacoder-backend-0.0.1-SNAPSHOT.jar
+```
+
+如果使用 systemd，请在服务文件中配置同名环境变量：
+
+```ini
+Environment=JAVACODER_SQLITE_PATH=/opt/javacoder/data/javacoder.sqlite
+```
+
 前端单独部署：
 
 ```bash

@@ -14,6 +14,7 @@ BACKEND_RUN_MODE="${BACKEND_RUN_MODE:-systemd}" # systemd, jar, or none
 BACKEND_JAVA_OPTS="${BACKEND_JAVA_OPTS:-}"
 BACKEND_PID_FILE="${BACKEND_PID_FILE:-/opt/javacoder/backend/javacoder-backend.pid}"
 BACKEND_LOG_FILE="${BACKEND_LOG_FILE:-/opt/javacoder/backend/javacoder-backend.log}"
+JAVACODER_SQLITE_PATH="${JAVACODER_SQLITE_PATH:-/opt/javacoder/data/javacoder.sqlite}"
 
 FRONTEND_DEPLOY_DIR="${FRONTEND_DEPLOY_DIR:-${APP_DIR}/frontend/dist}"
 FRONTEND_BUILD_DIR="${FRONTEND_BUILD_DIR:-${APP_DIR}/.deploy/frontend-dist}"
@@ -138,6 +139,7 @@ restart_backend_jar() {
 
   log "Restarting backend with java -jar"
   run_sudo mkdir -p "$(dirname "${BACKEND_PID_FILE}")" "$(dirname "${BACKEND_LOG_FILE}")"
+  run_sudo mkdir -p "$(dirname "${JAVACODER_SQLITE_PATH}")"
 
   if run_sudo test -f "${BACKEND_PID_FILE}"; then
     local old_pid
@@ -149,9 +151,9 @@ restart_backend_jar() {
   fi
 
   if [[ "${USE_SUDO}" == "true" || ( "${USE_SUDO}" == "auto" && "${EUID}" -ne 0 ) ]]; then
-    sudo sh -c "nohup java ${BACKEND_JAVA_OPTS} -jar '${target_jar}' >> '${BACKEND_LOG_FILE}' 2>&1 & echo \$! > '${BACKEND_PID_FILE}'"
+    sudo sh -c "JAVACODER_SQLITE_PATH='${JAVACODER_SQLITE_PATH}' nohup java ${BACKEND_JAVA_OPTS} -jar '${target_jar}' >> '${BACKEND_LOG_FILE}' 2>&1 & echo \$! > '${BACKEND_PID_FILE}'"
   else
-    sh -c "nohup java ${BACKEND_JAVA_OPTS} -jar '${target_jar}' >> '${BACKEND_LOG_FILE}' 2>&1 & echo \$! > '${BACKEND_PID_FILE}'"
+    sh -c "JAVACODER_SQLITE_PATH='${JAVACODER_SQLITE_PATH}' nohup java ${BACKEND_JAVA_OPTS} -jar '${target_jar}' >> '${BACKEND_LOG_FILE}' 2>&1 & echo \$! > '${BACKEND_PID_FILE}'"
   fi
 }
 
