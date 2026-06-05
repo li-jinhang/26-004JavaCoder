@@ -1,5 +1,6 @@
 package com.example.javacoder.service;
 
+import com.example.javacoder.model.CurrentUser;
 import com.example.javacoder.model.Problem;
 import com.example.javacoder.model.Submission;
 import com.example.javacoder.model.SubmissionRequest;
@@ -27,9 +28,11 @@ public class JudgeWorker implements AutoCloseable {
         this.executorService = Executors.newFixedThreadPool(2, new JudgeThreadFactory());
     }
 
-    public Submission enqueue(Problem problem, SubmissionRequest request) {
+    public Submission enqueue(Problem problem, SubmissionRequest request, CurrentUser submitter) {
         Submission pending = new Submission(
                 submissionStore.nextId(),
+                submitter.id(),
+                submitter.username(),
                 problem.id(),
                 problem.title(),
                 displayLanguage(request.language()),
@@ -44,7 +47,7 @@ public class JudgeWorker implements AutoCloseable {
         submissionStore.save(pending);
 
         try {
-            executorService.submit(() -> judge(pending.id(), problem, request));
+            executorService.submit(() -> judge(pending.id(), problem, request, submitter));
         } catch (RejectedExecutionException exception) {
             submissionStore.update(withStatus(pending, "Judge Error", "评测队列已关闭。"));
         }
@@ -52,12 +55,12 @@ public class JudgeWorker implements AutoCloseable {
         return pending;
     }
 
-    private void judge(long id, Problem problem, SubmissionRequest request) {
+    private void judge(long id, Problem problem, SubmissionRequest request, CurrentUser submitter) {
         submissionStore.findById(id)
                 .map(submission -> withStatus(submission, "Judging", "正在沙箱中编译并运行。"))
                 .ifPresent(submissionStore::update);
 
-        Submission judged = javaJudgeService.judge(id, problem, request);
+        Submission judged = javaJudgeService.judge(id, problem, request, submitter);
         submissionStore.findById(id)
                 .map(current -> withSubmittedAt(judged, current.submittedAt()))
                 .ifPresentOrElse(submissionStore::update, () -> submissionStore.update(judged));
@@ -72,6 +75,8 @@ public class JudgeWorker implements AutoCloseable {
     private Submission withStatus(Submission submission, String status, String message) {
         return new Submission(
                 submission.id(),
+                submission.userId(),
+                submission.username(),
                 submission.problemId(),
                 submission.problemTitle(),
                 submission.language(),
@@ -88,6 +93,8 @@ public class JudgeWorker implements AutoCloseable {
     private Submission withSubmittedAt(Submission submission, Instant submittedAt) {
         return new Submission(
                 submission.id(),
+                submission.userId(),
+                submission.username(),
                 submission.problemId(),
                 submission.problemTitle(),
                 submission.language(),

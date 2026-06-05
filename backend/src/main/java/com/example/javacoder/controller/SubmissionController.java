@@ -1,5 +1,6 @@
 package com.example.javacoder.controller;
 
+import com.example.javacoder.model.CurrentUser;
 import com.example.javacoder.model.Submission;
 import com.example.javacoder.model.SubmissionRequest;
 import com.example.javacoder.repository.ProblemRepository;
@@ -9,6 +10,7 @@ import com.example.javacoder.service.SubmissionStore;
 import com.example.javacoder.service.UserStore;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -62,13 +64,14 @@ public class SubmissionController {
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization
     ) {
         String token = extractBearerToken(authorization);
-        if (userStore.findByToken(token).isEmpty() && adminAccountStore.findByToken(token).isEmpty()) {
+        Optional<CurrentUser> submitter = userStore.findByToken(token).or(() -> adminAccountStore.findByToken(token));
+        if (submitter.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "请先登录后再提交代码。"));
         }
 
         return problemRepository.findById(request.problemId())
                 .<ResponseEntity<?>>map(problem -> {
-                    Submission submission = judgeWorker.enqueue(problem, request);
+                    Submission submission = judgeWorker.enqueue(problem, request, submitter.orElseThrow());
                     return ResponseEntity.accepted().body(submission);
                 })
                 .orElseGet(() -> ResponseEntity.badRequest().body(Map.of("message", "题目不存在。")));

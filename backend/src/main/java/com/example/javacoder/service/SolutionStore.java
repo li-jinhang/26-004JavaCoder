@@ -78,6 +78,33 @@ public class SolutionStore {
         );
     }
 
+    public List<Solution> findRecentByAuthorId(long authorId, int limit) {
+        return jdbcTemplate.query(
+                """
+                SELECT id, problem_id, problem_title, author_id, author_name, title, content, language,
+                       code, related_submission_id, status, created_at, updated_at
+                FROM solutions
+                WHERE author_id = ? AND status = ?
+                ORDER BY updated_at DESC, id DESC
+                LIMIT ?
+                """,
+                this::mapSolution,
+                authorId,
+                PUBLISHED,
+                limit
+        );
+    }
+
+    public long countByAuthorId(long authorId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM solutions WHERE author_id = ? AND status = ?",
+                Long.class,
+                authorId,
+                PUBLISHED
+        );
+        return count == null ? 0 : count;
+    }
+
     public Solution update(long id, SolutionRequest request) {
         Solution existing = findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("题解不存在。"));

@@ -3,10 +3,12 @@ package com.example.javacoder.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import com.example.javacoder.model.CurrentUser;
 import com.example.javacoder.model.Problem;
 import com.example.javacoder.model.Submission;
 import com.example.javacoder.model.SubmissionRequest;
 import com.example.javacoder.model.TestCase;
+import com.example.javacoder.model.UserRole;
 import com.example.javacoder.service.sandbox.JudgeSandboxProperties;
 import com.example.javacoder.service.sandbox.JudgeLimits;
 import com.example.javacoder.service.sandbox.SandboxProcessResult;
@@ -16,6 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -53,9 +56,11 @@ class JudgeWorkerTest {
                 1L,
                 "java",
                 "public class Main { public static void main(String[] args) {} }"
-        ));
+        ), new CurrentUser(101L, "alice", UserRole.USER, Instant.parse("2026-06-03T10:15:30Z")));
 
         assertThat(pending.status()).isEqualTo("Pending");
+        assertThat(pending.userId()).isEqualTo(101L);
+        assertThat(pending.username()).isEqualTo("alice");
         assertThat(submissionStore.findById(pending.id())).hasValueSatisfying(
                 submission -> assertThat(submission.status()).isIn("Pending", "Judging", "Accepted")
         );
@@ -65,6 +70,8 @@ class JudgeWorkerTest {
             assertThat(stored).isPresent();
             assertThat(stored.orElseThrow().status()).isEqualTo("Accepted");
             assertThat(stored.orElseThrow().passedCases()).isEqualTo(1);
+            assertThat(stored.orElseThrow().userId()).isEqualTo(101L);
+            assertThat(stored.orElseThrow().username()).isEqualTo("alice");
         });
 
         judgeWorker.close();

@@ -5,6 +5,8 @@ import java.util.List;
 
 public record Submission(
         long id,
+        Long userId,
+        String username,
         long problemId,
         String problemTitle,
         String language,

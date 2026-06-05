@@ -45,6 +45,8 @@ class SolutionStoreTest {
             assertThat(solution.relatedSubmissionId()).isEqualTo(1001L);
         });
         assertThat(secondStore.findByProblemId(problem.id())).hasSize(1);
+        assertThat(secondStore.countByAuthorId(author.id())).isEqualTo(1);
+        assertThat(secondStore.findRecentByAuthorId(author.id(), 5)).containsExactly(created);
 
         var updated = secondStore.update(created.id(), new SolutionRequest(
                 "Hash table idea",
@@ -59,6 +61,8 @@ class SolutionStoreTest {
         assertThat(secondStore.delete(created.id())).isTrue();
         assertThat(secondStore.findById(created.id())).isEmpty();
         assertThat(secondStore.findByProblemId(problem.id())).isEmpty();
+        assertThat(secondStore.countByAuthorId(author.id())).isZero();
+        assertThat(secondStore.findRecentByAuthorId(author.id(), 5)).isEmpty();
     }
 
     @Test

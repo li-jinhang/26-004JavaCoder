@@ -44,24 +44,12 @@ public class SubmissionStore {
     public Optional<Submission> findById(long id) {
         List<Submission> submissions = jdbcTemplate.query(
                 """
-                SELECT id, problem_id, problem_title, language, status, passed_cases, total_cases,
+                SELECT id, user_id, username, problem_id, problem_title, language, status, passed_cases, total_cases,
                        runtime_ms, message, submitted_at, case_results_json
                 FROM submissions
                 WHERE id = ?
                 """,
-                (resultSet, rowNumber) -> new Submission(
-                        resultSet.getLong("id"),
-                        resultSet.getLong("problem_id"),
-                        resultSet.getString("problem_title"),
-                        resultSet.getString("language"),
-                        resultSet.getString("status"),
-                        resultSet.getInt("passed_cases"),
-                        resultSet.getInt("total_cases"),
-                        resultSet.getLong("runtime_ms"),
-                        resultSet.getString("message"),
-                        Instant.parse(resultSet.getString("submitted_at")),
-                        parseCaseResults(resultSet.getString("case_results_json"))
-                ),
+                (resultSet, rowNumber) -> submissionFromRow(resultSet),
                 id
         );
         return submissions.stream().findFirst();
@@ -70,25 +58,29 @@ public class SubmissionStore {
     public List<Submission> findRecent() {
         return jdbcTemplate.query(
                 """
-                SELECT id, problem_id, problem_title, language, status, passed_cases, total_cases,
+                SELECT id, user_id, username, problem_id, problem_title, language, status, passed_cases, total_cases,
                        runtime_ms, message, submitted_at, case_results_json
                 FROM submissions
                 ORDER BY submitted_at DESC
                 LIMIT 20
                 """,
-                (resultSet, rowNumber) -> new Submission(
-                        resultSet.getLong("id"),
-                        resultSet.getLong("problem_id"),
-                        resultSet.getString("problem_title"),
-                        resultSet.getString("language"),
-                        resultSet.getString("status"),
-                        resultSet.getInt("passed_cases"),
-                        resultSet.getInt("total_cases"),
-                        resultSet.getLong("runtime_ms"),
-                        resultSet.getString("message"),
-                        Instant.parse(resultSet.getString("submitted_at")),
-                        parseCaseResults(resultSet.getString("case_results_json"))
-                )
+                (resultSet, rowNumber) -> submissionFromRow(resultSet)
+        );
+    }
+
+    public List<Submission> findRecentByUserId(long userId, int limit) {
+        return jdbcTemplate.query(
+                """
+                SELECT id, user_id, username, problem_id, problem_title, language, status, passed_cases, total_cases,
+                       runtime_ms, message, submitted_at, case_results_json
+                FROM submissions
+                WHERE user_id = ?
+                ORDER BY submitted_at DESC
+                LIMIT ?
+                """,
+                (resultSet, rowNumber) -> submissionFromRow(resultSet),
+                userId,
+                limit
         );
     }
 
@@ -111,11 +103,32 @@ public class SubmissionStore {
         return count == null ? 0 : count;
     }
 
+    public long countByUserId(long userId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM submissions WHERE user_id = ?",
+                Long.class,
+                userId
+        );
+        return count == null ? 0 : count;
+    }
+
+    public long acceptedCountByUserId(long userId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM submissions WHERE user_id = ? AND status = ?",
+                Long.class,
+                userId,
+                "Accepted"
+        );
+        return count == null ? 0 : count;
+    }
+
     private void initializeSchema() {
         jdbcTemplate.execute(
                 """
                 CREATE TABLE IF NOT EXISTS submissions (
                     id INTEGER PRIMARY KEY,
+                    user_id INTEGER,
+                    username TEXT,
                     problem_id INTEGER NOT NULL,
                     problem_title TEXT NOT NULL,
                     language TEXT NOT NULL,
@@ -129,8 +142,11 @@ public class SubmissionStore {
                 )
                 """
         );
+        ensureColumn("user_id", "ALTER TABLE submissions ADD COLUMN user_id INTEGER");
+        ensureColumn("username", "ALTER TABLE submissions ADD COLUMN username TEXT");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_submissions_problem_id ON submissions(problem_id)");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_submissions_submitted_at ON submissions(submitted_at)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user_id ON submissions(user_id)");
     }
 
     private long currentMaxSubmissionId() {
@@ -142,11 +158,13 @@ public class SubmissionStore {
         jdbcTemplate.update(
                 """
                 INSERT INTO submissions (
-                    id, problem_id, problem_title, language, status, passed_cases, total_cases,
+                    id, user_id, username, problem_id, problem_title, language, status, passed_cases, total_cases,
                     runtime_ms, message, submitted_at, case_results_json
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
+                    user_id = excluded.user_id,
+                    username = excluded.username,
                     problem_id = excluded.problem_id,
                     problem_title = excluded.problem_title,
                     language = excluded.language,
@@ -159,6 +177,8 @@ public class SubmissionStore {
                     case_results_json = excluded.case_results_json
                 """,
                 submission.id(),
+                submission.userId(),
+                submission.username(),
                 submission.problemId(),
                 submission.problemTitle(),
                 submission.language(),
@@ -170,6 +190,34 @@ public class SubmissionStore {
                 submission.submittedAt().toString(),
                 serializeCaseResults(submission.caseResults())
         );
+    }
+
+    private Submission submissionFromRow(java.sql.ResultSet resultSet) throws java.sql.SQLException {
+        long userId = resultSet.getLong("user_id");
+        return new Submission(
+                resultSet.getLong("id"),
+                resultSet.wasNull() ? null : userId,
+                resultSet.getString("username"),
+                resultSet.getLong("problem_id"),
+                resultSet.getString("problem_title"),
+                resultSet.getString("language"),
+                resultSet.getString("status"),
+                resultSet.getInt("passed_cases"),
+                resultSet.getInt("total_cases"),
+                resultSet.getLong("runtime_ms"),
+                resultSet.getString("message"),
+                Instant.parse(resultSet.getString("submitted_at")),
+                parseCaseResults(resultSet.getString("case_results_json"))
+        );
+    }
+
+    private void ensureColumn(String columnName, String alterSql) {
+        boolean hasColumn = jdbcTemplate.queryForList("PRAGMA table_info(submissions)").stream()
+                .map(column -> (String) column.get("name"))
+                .anyMatch(columnName::equals);
+        if (!hasColumn) {
+            jdbcTemplate.execute(alterSql);
+        }
     }
 
     private String serializeCaseResults(List<TestCaseResult> caseResults) {

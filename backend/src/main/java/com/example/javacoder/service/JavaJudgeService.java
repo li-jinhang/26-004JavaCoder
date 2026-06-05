@@ -1,5 +1,6 @@
 package com.example.javacoder.service;
 
+import com.example.javacoder.model.CurrentUser;
 import com.example.javacoder.model.Problem;
 import com.example.javacoder.model.Submission;
 import com.example.javacoder.model.SubmissionRequest;
@@ -42,11 +43,16 @@ public class JavaJudgeService {
     }
 
     public Submission judge(long submissionId, Problem problem, SubmissionRequest request) {
+        return judge(submissionId, problem, request, null);
+    }
+
+    public Submission judge(long submissionId, Problem problem, SubmissionRequest request, CurrentUser submitter) {
         Instant startedAt = Instant.now();
         LanguageSpec language = languageRegistry.findById(request.language()).orElse(null);
         if (language == null) {
             return rejected(
                     submissionId,
+                    submitter,
                     problem,
                     request,
                     startedAt,
@@ -56,22 +62,22 @@ public class JavaJudgeService {
             );
         }
         if (request.code() == null || request.code().isBlank()) {
-            return rejected(submissionId, problem, request, startedAt, language.displayName(), "Compile Error", "Source code cannot be empty.");
+            return rejected(submissionId, submitter, problem, request, startedAt, language.displayName(), "Compile Error", "Source code cannot be empty.");
         }
         if (request.code().getBytes(StandardCharsets.UTF_8).length > properties.getMaxSourceBytes()) {
-            return rejected(submissionId, problem, request, startedAt, language.displayName(), "Source Limit Exceeded", "Source code exceeds the configured limit.");
+            return rejected(submissionId, submitter, problem, request, startedAt, language.displayName(), "Source Limit Exceeded", "Source code exceeds the configured limit.");
         }
 
         try (SandboxSession session = sandboxRunner.createSession(language, request.code(), properties.limits())) {
             SandboxProcessResult compileResult = session.compile();
             if (compileResult.timedOut()) {
-                return rejected(submissionId, problem, request, startedAt, language.displayName(), "Compile Timeout", "Compilation timed out.");
+                return rejected(submissionId, submitter, problem, request, startedAt, language.displayName(), "Compile Timeout", "Compilation timed out.");
             }
             if (compileResult.outputLimitExceeded()) {
-                return rejected(submissionId, problem, request, startedAt, language.displayName(), "Output Limit Exceeded", "Compilation output exceeds the configured limit.");
+                return rejected(submissionId, submitter, problem, request, startedAt, language.displayName(), "Output Limit Exceeded", "Compilation output exceeds the configured limit.");
             }
             if (compileResult.exitCode() != 0) {
-                return rejected(submissionId, problem, request, startedAt, language.displayName(), "Compile Error", firstUsefulLine(compileResult.stderr()));
+                return rejected(submissionId, submitter, problem, request, startedAt, language.displayName(), "Compile Error", firstUsefulLine(compileResult.stderr()));
             }
 
             List<TestCaseResult> caseResults = new ArrayList<>();
@@ -100,6 +106,8 @@ public class JavaJudgeService {
 
             return new Submission(
                     submissionId,
+                    submitter == null ? null : submitter.id(),
+                    submitter == null ? null : submitter.username(),
                     problem.id(),
                     problem.title(),
                     language.displayName(),
@@ -112,12 +120,13 @@ public class JavaJudgeService {
                     caseResults
             );
         } catch (IOException exception) {
-            return rejected(submissionId, problem, request, startedAt, language.displayName(), "Judge Error", "Sandbox error: " + exception.getMessage());
+            return rejected(submissionId, submitter, problem, request, startedAt, language.displayName(), "Judge Error", "Sandbox error: " + exception.getMessage());
         }
     }
 
     private Submission rejected(
             long submissionId,
+            CurrentUser submitter,
             Problem problem,
             SubmissionRequest request,
             Instant submittedAt,
@@ -127,6 +136,8 @@ public class JavaJudgeService {
     ) {
         return new Submission(
                 submissionId,
+                submitter == null ? null : submitter.id(),
+                submitter == null ? null : submitter.username(),
                 problem.id(),
                 problem.title(),
                 languageName,

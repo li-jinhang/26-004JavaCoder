@@ -335,6 +335,8 @@
             spellcheck="false"
             class="code-editor"
             :aria-label="`${selectedLanguageInfo.displayName} source code editor`"
+            @keydown.tab.prevent="indentCode"
+            @keydown.backspace="deleteIndent"
           />
 
           <section v-if="latestResult" class="result-panel">
@@ -413,6 +415,37 @@
                 <p>ID {{ user.id }} · {{ formatTime(user.createdAt) }}</p>
               </div>
             </div>
+            <div class="admin-submission-summary">
+              <p class="admin-submission-stats">
+                <span>提交 {{ user.totalSubmissions || 0 }}</span>
+                <span>通过 {{ user.acceptedSubmissions || 0 }}</span>
+                <span>题解 {{ user.totalSolutions || 0 }}</span>
+              </p>
+              <div v-if="user.recentSubmissions?.length" class="admin-submission-list">
+                <article v-for="submission in user.recentSubmissions" :key="submission.id" class="admin-submission-row">
+                  <div>
+                    <strong>{{ submission.problemTitle }}</strong>
+                    <p>{{ formatTime(submission.submittedAt) }} · {{ submission.language }} · {{ submission.passedCases }}/{{ submission.totalCases }}</p>
+                  </div>
+                  <span :class="['status-pill', statusClass(submission.status)]">
+                    {{ displayStatus(submission.status) }}
+                  </span>
+                </article>
+              </div>
+              <p v-else class="admin-submission-empty">暂无提交记录</p>
+              <div class="admin-solution-summary">
+                <p class="admin-section-title">最近题解</p>
+                <div v-if="user.recentSolutions?.length" class="admin-submission-list">
+                  <article v-for="solution in user.recentSolutions" :key="solution.id" class="admin-submission-row">
+                    <div>
+                      <strong>{{ solution.title }}</strong>
+                      <p>{{ solution.problemTitle }} · {{ formatTime(solution.updatedAt) }} · {{ formatSolutionLanguage(solution.language) }}</p>
+                    </div>
+                  </article>
+                </div>
+                <p v-else class="admin-submission-empty">暂无题解</p>
+              </div>
+            </div>
             <span :class="['role-badge', { admin: user.role === 'ADMIN' }]">
               {{ formatUserRole(user.role) }}
             </span>
@@ -442,6 +475,9 @@
         </header>
         <pre class="solution-code">{{ currentSolution }}</pre>
         <footer class="solution-actions">
+          <div v-if="solutionCopyError" class="solution-copy-error" role="alert">
+            {{ solutionCopyError }}
+          </div>
           <button class="ghost-button" type="button" @click="copySolutionCode">
             {{ copiedSolution ? '已复制' : '复制代码' }}
           </button>
@@ -547,8 +583,7 @@
               <span>好友</span>
               <strong>{{ socialFriends.length }}</strong>
             </div>
-            <div v-if="socialLoadingFriends" class="loading-panel compact-panel">正在加载好友...</div>
-            <div v-else-if="socialFriends.length === 0" class="empty-state social-empty">搜索用户并添加好友后即可聊天。</div>
+            <div v-if="!socialLoadingFriends && socialFriends.length === 0" class="empty-state social-empty">搜索用户并添加好友后即可聊天。</div>
             <button
               v-for="friend in socialFriends"
               :key="friend.id"
@@ -563,6 +598,7 @@
               </span>
               <em v-if="friend.unreadCount">{{ friend.unreadCount }}</em>
             </button>
+            <div v-if="socialLoadingFriends" class="loading-panel compact-panel social-loading-note">正在加载好友...</div>
           </aside>
 
           <section class="chat-panel">
@@ -740,6 +776,7 @@ const submitting = ref(false)
 const errorMessage = ref('')
 const showSolutionDialog = ref(false)
 const copiedSolution = ref(false)
+const solutionCopyError = ref('')
 const activeProblemTab = ref('statement')
 const userSolutions = ref([])
 const loadingSolutions = ref(false)
@@ -1283,6 +1320,7 @@ async function openProblem(problemId, updateHash = true) {
   selectedProblem.value = null
   showSolutionDialog.value = false
   copiedSolution.value = false
+  solutionCopyError.value = ''
   activeProblemTab.value = 'statement'
   userSolutions.value = []
   solutionMessage.value = ''
@@ -1314,6 +1352,7 @@ function goHome() {
   errorMessage.value = ''
   showSolutionDialog.value = false
   copiedSolution.value = false
+  solutionCopyError.value = ''
   activeProblemTab.value = 'statement'
   userSolutions.value = []
   solutionMessage.value = ''
@@ -1340,6 +1379,94 @@ function resetCode() {
     delete codeDrafts.value[draftKey(selectedProblem.value.id, selectedLanguage.value)]
     code.value = starterCodeForLanguage(selectedLanguage.value)
   }
+}
+
+function indentCode(event) {
+  const editor = event.target
+  const indent = '    '
+  const start = editor.selectionStart
+  const end = editor.selectionEnd
+  const value = code.value
+
+  if (event.shiftKey) {
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1
+    const lineEnd = end === start ? end : value.indexOf('\n', end - 1)
+    const selectionEnd = lineEnd === -1 ? value.length : lineEnd
+    const selectedText = value.slice(lineStart, selectionEnd)
+    let removedBeforeStart = 0
+    let removedTotal = 0
+    const nextText = selectedText.replace(/^( {1,4}|\t)/gm, (match, offset) => {
+      if (lineStart + offset < start) {
+        removedBeforeStart += match.length
+      }
+      removedTotal += match.length
+      return ''
+    })
+
+    code.value = value.slice(0, lineStart) + nextText + value.slice(selectionEnd)
+    window.requestAnimationFrame(() => {
+      editor.setSelectionRange(
+        Math.max(lineStart, start - removedBeforeStart),
+        Math.max(lineStart, end - removedTotal)
+      )
+    })
+    return
+  }
+
+  if (start !== end && value.slice(start, end).includes('\n')) {
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1
+    const selectedText = value.slice(lineStart, end)
+    const lineCount = selectedText.split('\n').length
+    const nextText = selectedText.replace(/^/gm, indent)
+
+    code.value = value.slice(0, lineStart) + nextText + value.slice(end)
+    window.requestAnimationFrame(() => {
+      editor.setSelectionRange(start + indent.length, end + indent.length * lineCount)
+    })
+    return
+  }
+
+  code.value = value.slice(0, start) + indent + value.slice(end)
+  window.requestAnimationFrame(() => {
+    const cursor = start + indent.length
+    editor.setSelectionRange(cursor, cursor)
+  })
+}
+
+function deleteIndent(event) {
+  const editor = event.target
+  const start = editor.selectionStart
+  const end = editor.selectionEnd
+  const value = code.value
+
+  if (start !== end || start === 0) {
+    return
+  }
+
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1
+  const beforeCursor = value.slice(lineStart, start)
+  if (!beforeCursor || !/^[ \t]+$/.test(beforeCursor)) {
+    return
+  }
+
+  let deleteCount = 0
+  if (beforeCursor.endsWith('\t')) {
+    deleteCount = 1
+  } else {
+    const trailingSpaces = beforeCursor.match(/ +$/)?.[0].length || 0
+    deleteCount = Math.min(trailingSpaces, ((beforeCursor.length - 1) % 4) + 1)
+  }
+
+  if (deleteCount === 0) {
+    return
+  }
+
+  event.preventDefault()
+  const nextStart = start - deleteCount
+  code.value = value.slice(0, nextStart) + value.slice(start)
+  window.requestAnimationFrame(() => {
+    editor.setSelectionRange(nextStart, nextStart)
+  })
 }
 
 function draftKey(problemId, languageId) {
@@ -1393,11 +1520,13 @@ function openSolutionDialog() {
   }
 
   copiedSolution.value = false
+  solutionCopyError.value = ''
   showSolutionDialog.value = true
 }
 
 function closeSolutionDialog() {
   showSolutionDialog.value = false
+  solutionCopyError.value = ''
 }
 
 async function copySolutionCode() {
@@ -1408,8 +1537,10 @@ async function copySolutionCode() {
   try {
     await navigator.clipboard.writeText(currentSolution.value)
     copiedSolution.value = true
+    solutionCopyError.value = ''
   } catch (error) {
-    errorMessage.value = '复制失败，请手动选中代码复制。'
+    copiedSolution.value = false
+    solutionCopyError.value = '复制失败，请手动选中代码复制。'
   }
 }
 
@@ -2688,6 +2819,15 @@ button:disabled {
   justify-content: flex-end;
 }
 
+.solution-copy-error {
+  flex: 1;
+  align-self: center;
+  color: #972a1f;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.5;
+}
+
 .error-banner {
   max-width: 1360px;
   margin: 0 auto 16px;
@@ -2823,6 +2963,10 @@ button:disabled {
   .solution-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .solution-copy-error {
+    align-self: stretch;
   }
 
   .solution-code {
@@ -4005,6 +4149,123 @@ button:disabled {
   user-select: none;
 }
 
+.admin-panel {
+  width: min(1120px, 100%);
+}
+
+.admin-user-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  align-items: start;
+  gap: 12px;
+}
+
+.admin-user-main {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.admin-user-row > .role-badge {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+}
+
+.admin-user-row > .danger-button {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
+
+.admin-submission-summary {
+  min-width: 0;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.admin-submission-stats,
+.admin-submission-empty {
+  margin: 0;
+}
+
+.admin-submission-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-submission-stats span {
+  min-height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 9px;
+  background: rgba(255, 250, 240, 0.74);
+}
+
+.admin-submission-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-solution-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-section-title {
+  margin: 2px 0 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-submission-row {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(255, 250, 240, 0.64);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-submission-row strong,
+.admin-submission-row p {
+  margin: 0;
+}
+
+.admin-submission-row strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-submission-row p,
+.admin-submission-empty {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.social-loading-note {
+  max-width: none;
+  margin: 2px 0 0;
+  padding: 10px 12px;
+  background: rgba(255, 253, 247, 0.72);
+  box-shadow: none;
+}
+
 @media (max-width: 1180px) {
   .pane-resizer {
     display: none;
@@ -4027,6 +4288,23 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  .admin-user-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-user-main,
+  .admin-submission-summary,
+  .admin-user-row > .role-badge,
+  .admin-user-row > .danger-button {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: stretch;
+  }
+
+  .admin-submission-row {
+    grid-template-columns: 1fr;
+  }
+
   .editor-header > .editor-actions {
     width: 100%;
     margin-left: 0;

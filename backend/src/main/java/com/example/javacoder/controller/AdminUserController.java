@@ -3,6 +3,8 @@ package com.example.javacoder.controller;
 import com.example.javacoder.model.AdminUserView;
 import com.example.javacoder.model.CurrentUser;
 import com.example.javacoder.service.AdminAccountStore;
+import com.example.javacoder.service.SolutionStore;
+import com.example.javacoder.service.SubmissionStore;
 import com.example.javacoder.service.UserStore;
 import java.util.List;
 import java.util.Map;
@@ -23,10 +25,19 @@ public class AdminUserController {
 
     private final UserStore userStore;
     private final AdminAccountStore adminAccountStore;
+    private final SubmissionStore submissionStore;
+    private final SolutionStore solutionStore;
 
-    public AdminUserController(UserStore userStore, AdminAccountStore adminAccountStore) {
+    public AdminUserController(
+            UserStore userStore,
+            AdminAccountStore adminAccountStore,
+            SubmissionStore submissionStore,
+            SolutionStore solutionStore
+    ) {
         this.userStore = userStore;
         this.adminAccountStore = adminAccountStore;
+        this.submissionStore = submissionStore;
+        this.solutionStore = solutionStore;
     }
 
     @GetMapping
@@ -37,7 +48,19 @@ public class AdminUserController {
         return requireAdmin(authorization)
                 .<ResponseEntity<?>>map(admin -> {
                     List<AdminUserView> users = userStore.searchUsers(query).stream()
-                            .map(user -> AdminUserView.from(user, admin.id()))
+                            .map(user -> AdminUserView.from(
+                                    user,
+                                    admin.id(),
+                                    submissionStore.countByUserId(user.id()),
+                                    submissionStore.acceptedCountByUserId(user.id()),
+                                    submissionStore.findRecentByUserId(user.id(), 5).stream()
+                                            .map(com.example.javacoder.model.AdminSubmissionView::from)
+                                            .toList(),
+                                    solutionStore.countByAuthorId(user.id()),
+                                    solutionStore.findRecentByAuthorId(user.id(), 5).stream()
+                                            .map(com.example.javacoder.model.AdminSolutionView::from)
+                                            .toList()
+                            ))
                             .toList();
                     return ResponseEntity.ok(users);
                 })

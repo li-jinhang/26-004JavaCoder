@@ -23,6 +23,8 @@ class SubmissionStoreTest {
         SubmissionStore firstStore = new SubmissionStore(sqliteJdbcTemplate(), new ObjectMapper());
         Submission submission = new Submission(
                 1005,
+                123L,
+                "alice",
                 7,
                 "Reverse Words",
                 "Java",
@@ -43,6 +45,9 @@ class SubmissionStoreTest {
         assertThat(secondStore.findRecent()).containsExactly(submission);
         assertThat(secondStore.countByProblemId(7)).isEqualTo(1);
         assertThat(secondStore.acceptedCountByProblemId(7)).isEqualTo(1);
+        assertThat(secondStore.countByUserId(123)).isEqualTo(1);
+        assertThat(secondStore.acceptedCountByUserId(123)).isEqualTo(1);
+        assertThat(secondStore.findRecentByUserId(123, 5)).containsExactly(submission);
         assertThat(secondStore.nextId()).isEqualTo(1006);
     }
 
