@@ -45,6 +45,7 @@ public class JudgeWorker implements AutoCloseable {
                 List.of()
         );
         submissionStore.save(pending);
+        submissionStore.saveSource(pending.id(), request.language(), request.code());
 
         try {
             executorService.submit(() -> judge(pending.id(), problem, request, submitter));

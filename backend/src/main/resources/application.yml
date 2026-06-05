@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: javacoder-backend
+  config:
+    import:
+      - optional:file:./backend/config/llm.yml
+      - optional:file:./config/llm.yml
 
 javacoder:
   storage:
@@ -25,3 +29,11 @@ judge:
     pids-limit: 64
     tmpfs-mb: 64
     network-enabled: false
+
+llm:
+  enabled: ${JAVACODER_LLM_ENABLED:false}
+  base-url: ${JAVACODER_LLM_BASE_URL:}
+  api-key: ${JAVACODER_LLM_API_KEY:}
+  model: ${JAVACODER_LLM_MODEL:}
+  timeout: 30s
+  max-input-chars: 60000

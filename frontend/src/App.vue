@@ -352,6 +352,61 @@
             </div>
             <p class="result-message">{{ latestResult.message }}</p>
 
+            <div class="ai-review-actions">
+              <button
+                class="ghost-button"
+                type="button"
+                :disabled="reviewingCode || isPendingStatus(latestResult.status)"
+                @click="requestAiReview"
+              >
+                {{ reviewingCode ? 'AI 分析中...' : 'AI 评价代码' }}
+              </button>
+              <span v-if="isPendingStatus(latestResult.status)">评测完成后可生成 AI 评价</span>
+            </div>
+
+            <section v-if="aiReview || aiReviewMessage" class="ai-review-panel">
+              <div v-if="aiReviewMessage" class="admin-message">{{ aiReviewMessage }}</div>
+              <template v-if="aiReview">
+                <div class="ai-review-head">
+                  <div>
+                    <p class="eyebrow">AI Review</p>
+                    <strong>{{ aiReview.summary }}</strong>
+                  </div>
+                  <span class="ai-score">{{ aiReview.score }}</span>
+                </div>
+                <div class="ai-review-grid">
+                  <article>
+                    <p class="eyebrow">正确性</p>
+                    <p>{{ aiReview.correctness }}</p>
+                  </article>
+                  <article>
+                    <p class="eyebrow">复杂度</p>
+                    <p>{{ aiReview.complexity }}</p>
+                  </article>
+                </div>
+                <div class="ai-review-lists">
+                  <article v-if="aiReview.bugs?.length">
+                    <strong>潜在问题</strong>
+                    <ul>
+                      <li v-for="item in aiReview.bugs" :key="item">{{ item }}</li>
+                    </ul>
+                  </article>
+                  <article v-if="aiReview.improvements?.length">
+                    <strong>优化建议</strong>
+                    <ul>
+                      <li v-for="item in aiReview.improvements" :key="item">{{ item }}</li>
+                    </ul>
+                  </article>
+                  <article v-if="aiReview.nextSteps?.length">
+                    <strong>下一步</strong>
+                    <ul>
+                      <li v-for="item in aiReview.nextSteps" :key="item">{{ item }}</li>
+                    </ul>
+                  </article>
+                </div>
+              </template>
+            </section>
+
             <div class="case-list">
               <article v-for="caseResult in latestResult.caseResults" :key="caseResult.caseNumber" class="case-card">
                 <div class="case-head">
@@ -768,6 +823,9 @@ const languages = ref([...fallbackLanguages])
 const selectedLanguage = ref(localStorage.getItem('javacoder-language') || 'java')
 const codeDrafts = ref({})
 const latestResult = ref(null)
+const aiReview = ref(null)
+const aiReviewMessage = ref('')
+const reviewingCode = ref(false)
 const searchQuery = ref('')
 const difficultyFilter = ref('全部')
 const loadingProblems = ref(false)
@@ -1316,6 +1374,7 @@ async function openProblem(problemId, updateHash = true) {
   loadingProblem.value = true
   errorMessage.value = ''
   latestResult.value = null
+  resetAiReview()
   problemPaneCollapsed.value = false
   selectedProblem.value = null
   showSolutionDialog.value = false
@@ -1349,6 +1408,7 @@ function goHome() {
   selectedProblem.value = null
   problemPaneCollapsed.value = false
   latestResult.value = null
+  resetAiReview()
   errorMessage.value = ''
   showSolutionDialog.value = false
   copiedSolution.value = false
@@ -1664,6 +1724,7 @@ async function submitCode() {
 
   submitting.value = true
   errorMessage.value = ''
+  resetAiReview()
   try {
     latestResult.value = await requestJson('/api/submissions', {
       method: 'POST',
@@ -1715,6 +1776,34 @@ function delay(ms) {
 
 function isPendingStatus(status) {
   return ['Pending', 'Judging'].includes(status)
+}
+
+async function requestAiReview() {
+  if (!latestResult.value || isPendingStatus(latestResult.value.status)) {
+    return
+  }
+  if (!requireLogin(() => requestAiReview(), '请先登录后再使用 AI 评价。')) {
+    return
+  }
+
+  reviewingCode.value = true
+  aiReviewMessage.value = ''
+  try {
+    aiReview.value = await requestJson(`/api/ai/submissions/${latestResult.value.id}/review`, {
+      method: 'POST',
+      headers: authHeaders()
+    })
+  } catch (error) {
+    aiReviewMessage.value = error.message
+  } finally {
+    reviewingCode.value = false
+  }
+}
+
+function resetAiReview() {
+  aiReview.value = null
+  aiReviewMessage.value = ''
+  reviewingCode.value = false
 }
 
 function openAuthDialog(mode = 'login') {
@@ -2689,6 +2778,78 @@ button:disabled {
   display: grid;
   gap: 10px;
   margin-top: 14px;
+}
+
+.ai-review-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.ai-review-actions span,
+.ai-review-panel li,
+.ai-review-panel p {
+  color: #5f6866;
+  line-height: 1.65;
+}
+
+.ai-review-panel {
+  margin-top: 14px;
+  border: 1px solid rgba(32, 35, 38, 0.14);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.ai-review-head,
+.ai-review-grid,
+.ai-review-lists {
+  display: grid;
+  gap: 12px;
+}
+
+.ai-review-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.ai-review-head strong {
+  display: block;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.ai-score {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #202326;
+  color: #fff8ea;
+  font-weight: 900;
+}
+
+.ai-review-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.ai-review-grid article,
+.ai-review-lists article {
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(246, 240, 226, 0.72);
+}
+
+.ai-review-lists {
+  margin-top: 12px;
+}
+
+.ai-review-lists ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
 }
 
 .modal-backdrop {

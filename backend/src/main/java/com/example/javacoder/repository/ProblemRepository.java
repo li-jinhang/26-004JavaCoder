@@ -30,7 +30,7 @@ public class ProblemRepository {
         this(new ObjectMapper());
     }
 
-    ProblemRepository(ResourcePatternResolver resourceResolver, ObjectMapper objectMapper) {
+    public ProblemRepository(ResourcePatternResolver resourceResolver, ObjectMapper objectMapper) {
         this.problems = loadProblems(resourceResolver, objectMapper);
     }
 

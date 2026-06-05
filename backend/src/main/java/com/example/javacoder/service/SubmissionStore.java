@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.javacoder.model.Submission;
+import com.example.javacoder.model.SubmissionSource;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -41,6 +42,19 @@ public class SubmissionStore {
         upsert(submission);
     }
 
+    public void saveSource(long submissionId, String language, String code) {
+        jdbcTemplate.update(
+                """
+                UPDATE submissions
+                SET source_language = ?, source_code = ?
+                WHERE id = ?
+                """,
+                language == null ? "" : language,
+                code == null ? "" : code,
+                submissionId
+        );
+    }
+
     public Optional<Submission> findById(long id) {
         List<Submission> submissions = jdbcTemplate.query(
                 """
@@ -53,6 +67,29 @@ public class SubmissionStore {
                 id
         );
         return submissions.stream().findFirst();
+    }
+
+    public Optional<SubmissionSource> findSourceById(long id) {
+        List<SubmissionSource> sources = jdbcTemplate.query(
+                """
+                SELECT id, source_language, source_code
+                FROM submissions
+                WHERE id = ?
+                """,
+                (resultSet, rowNumber) -> {
+                    String code = resultSet.getString("source_code");
+                    if (code == null || code.isBlank()) {
+                        return null;
+                    }
+                    return new SubmissionSource(
+                            resultSet.getLong("id"),
+                            resultSet.getString("source_language"),
+                            code
+                    );
+                },
+                id
+        );
+        return sources.stream().filter(source -> source != null).findFirst();
     }
 
     public List<Submission> findRecent() {
@@ -144,6 +181,8 @@ public class SubmissionStore {
         );
         ensureColumn("user_id", "ALTER TABLE submissions ADD COLUMN user_id INTEGER");
         ensureColumn("username", "ALTER TABLE submissions ADD COLUMN username TEXT");
+        ensureColumn("source_language", "ALTER TABLE submissions ADD COLUMN source_language TEXT");
+        ensureColumn("source_code", "ALTER TABLE submissions ADD COLUMN source_code TEXT");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_submissions_problem_id ON submissions(problem_id)");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_submissions_submitted_at ON submissions(submitted_at)");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user_id ON submissions(user_id)");

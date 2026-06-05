@@ -19,6 +19,9 @@ data/
 *.sqlite-shm
 *.sqlite-wal
 
+# Local secrets
+backend/config/llm.yml
+
 # Node.js
 frontend/node_modules/
 frontend/dist/

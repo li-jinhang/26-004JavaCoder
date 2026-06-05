@@ -38,10 +38,15 @@ class SubmissionStoreTest {
         );
 
         firstStore.save(submission);
+        firstStore.saveSource(1005, "java", "public class Main {}");
 
         SubmissionStore secondStore = new SubmissionStore(sqliteJdbcTemplate(), new ObjectMapper());
 
         assertThat(secondStore.findById(1005)).hasValue(submission);
+        assertThat(secondStore.findSourceById(1005)).hasValueSatisfying(source -> {
+            assertThat(source.language()).isEqualTo("java");
+            assertThat(source.code()).isEqualTo("public class Main {}");
+        });
         assertThat(secondStore.findRecent()).containsExactly(submission);
         assertThat(secondStore.countByProblemId(7)).isEqualTo(1);
         assertThat(secondStore.acceptedCountByProblemId(7)).isEqualTo(1);
