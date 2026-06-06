@@ -2,49 +2,14 @@
   <main class="app-shell">
     <section v-if="viewMode === 'home'" class="home-view">
       <header class="home-header">
-        <div>
+        <div class="home-hero-copy">
           <p class="eyebrow">JavaCoder Online Judge</p>
           <h1>代码在线练习平台</h1>
           <p class="home-subtitle">轻松学会一门高级语言！</p>
         </div>
-        <div class="home-side">
-          <div class="account-bar">
-            <template v-if="currentUser">
-              <span class="avatar-mark">{{ currentUser.username.slice(0, 1).toUpperCase() }}</span>
-              <div>
-                <p>当前用户</p>
-                <strong>{{ currentUser.username }}</strong>
-              </div>
-              <span v-if="isAdmin" class="role-badge">管理员</span>
-              <button v-if="isAdmin" class="ghost-button compact-button" type="button" @click="openAdminPanel">用户管理</button>
-              <button v-if="!isAdmin" class="ghost-button compact-button" type="button" @click="openSocialPanel">
-                好友消息<span v-if="socialUnreadCount" class="inline-count">{{ socialUnreadCount }}</span>
-              </button>
-              <button class="ghost-button compact-button" type="button" @click="logout">退出</button>
-            </template>
-            <template v-else>
-              <div>
-                <p>登录后提交代码</p>
-                <strong>保存你的练习记录</strong>
-              </div>
-              <button class="primary-button compact-button" type="button" @click="openAuthDialog('login')">登录</button>
-              <button class="ghost-button compact-button" type="button" @click="openAuthDialog('register')">注册</button>
-            </template>
-          </div>
-          <div class="home-stats" aria-label="题库统计">
-            <div>
-              <strong>{{ problems.length }}</strong>
-              <span>题目</span>
-            </div>
-            <div>
-              <strong>{{ acceptedProblemCount }}</strong>
-              <span>已通过</span>
-            </div>
-            <div>
-              <strong>{{ submissions.length }}</strong>
-              <span>提交</span>
-            </div>
-          </div>
+        <div class="hero-language-marks" aria-label="Language logos">
+          <img class="hero-language-logo python-logo" :src="pythonLogo" alt="Python logo" />
+          <img class="hero-language-logo java-coffee-logo" :src="javaCoffeeLogo" alt="Java coffee cup logo" />
         </div>
       </header>
 
@@ -61,22 +26,28 @@
             autocomplete="off"
           />
         </label>
-        <div class="difficulty-filter" role="tablist" aria-label="按难度筛选">
-          <button
-            v-for="option in difficultyOptions"
-            :key="option"
-            :class="{ active: difficultyFilter === option }"
-            type="button"
-            role="tab"
-            :aria-selected="difficultyFilter === option"
-            @click="difficultyFilter = option"
-          >
-            {{ option }}
-          </button>
-        </div>
-        <div class="toolbar-count">
-          <strong>{{ filteredProblems.length }}</strong>
-          <span>/ {{ problems.length }} 题</span>
+        <div class="account-bar toolbar-account">
+          <template v-if="currentUser">
+            <span class="avatar-mark">{{ currentUser.username.slice(0, 1).toUpperCase() }}</span>
+            <div>
+              <p>当前用户</p>
+              <strong>{{ currentUser.username }}</strong>
+            </div>
+            <span v-if="isAdmin" class="role-badge">管理员</span>
+            <button v-if="isAdmin" class="ghost-button compact-button" type="button" @click="openAdminPanel">用户管理</button>
+            <button v-if="!isAdmin" class="ghost-button compact-button" type="button" @click="openSocialPanel">
+              好友消息<span v-if="socialUnreadCount" class="inline-count">{{ socialUnreadCount }}</span>
+            </button>
+            <button class="ghost-button compact-button" type="button" @click="logout">退出</button>
+          </template>
+          <template v-else>
+            <div>
+              <p>登录后提交代码</p>
+              <strong>保存你的练习记录</strong>
+            </div>
+            <button class="primary-button compact-button" type="button" @click="openAuthDialog('login')">登录</button>
+            <button class="ghost-button compact-button" type="button" @click="openAuthDialog('register')">注册</button>
+          </template>
         </div>
       </section>
 
@@ -106,7 +77,7 @@
           </button>
           <div v-if="!loadingProblems && filteredProblems.length === 0" class="catalog-empty">
             <strong>没有找到匹配题目</strong>
-            <span>换个关键词或清除难度筛选</span>
+            <span>换个关键词再试试</span>
           </div>
         </section>
 
@@ -354,6 +325,7 @@
 
             <div class="ai-review-actions">
               <button
+                v-if="!aiReview"
                 class="ghost-button"
                 type="button"
                 :disabled="reviewingCode || isPendingStatus(latestResult.status)"
@@ -784,6 +756,8 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import javaCoffeeLogo from './assets/java-coffee-logo.png'
+import pythonLogo from './assets/python-logo.png'
 
 const viewMode = ref('home')
 const problems = ref([])
@@ -827,7 +801,6 @@ const aiReview = ref(null)
 const aiReviewMessage = ref('')
 const reviewingCode = ref(false)
 const searchQuery = ref('')
-const difficultyFilter = ref('全部')
 const loadingProblems = ref(false)
 const loadingProblem = ref(false)
 const submitting = ref(false)
@@ -886,9 +859,7 @@ const shareDraft = ref({
 let submissionPollTimer = null
 let socialPollTimer = null
 
-const difficultyOptions = ['全部', '简单', '中等', '困难']
 const activeProblemId = computed(() => selectedProblem.value?.id)
-const acceptedProblemCount = computed(() => problems.value.filter((problem) => problem.acceptedCount > 0).length)
 const availableLanguages = computed(() => languages.value.length ? languages.value : fallbackLanguages)
 const selectedLanguageInfo = computed(() => (
   availableLanguages.value.find((language) => language.id === selectedLanguage.value)
@@ -907,11 +878,6 @@ const filteredProblems = computed(() => {
 
   return problems.value.filter((problem) => {
     const difficulty = displayDifficulty(problem.difficulty)
-    const matchesDifficulty = difficultyFilter.value === '全部' || difficulty === difficultyFilter.value
-    if (!matchesDifficulty) {
-      return false
-    }
-
     if (!keyword) {
       return true
     }
@@ -2083,7 +2049,7 @@ button {
   padding: 12px;
   background: rgba(255, 253, 247, 0.84);
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto auto;
+  grid-template-columns: minmax(260px, 1fr) minmax(320px, 520px);
   align-items: center;
   gap: 12px;
   box-shadow: 0 18px 46px rgba(64, 55, 41, 0.08);
@@ -2119,55 +2085,6 @@ button {
   color: #8a8071;
 }
 
-.difficulty-filter {
-  min-height: 48px;
-  border: 1px solid #cfc3b2;
-  border-radius: 8px;
-  padding: 4px;
-  background: #f4ecdf;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(58px, 1fr));
-  gap: 4px;
-}
-
-.difficulty-filter button {
-  border-radius: 6px;
-  padding: 0 12px;
-  background: transparent;
-  color: #59625f;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 900;
-  white-space: nowrap;
-}
-
-.difficulty-filter button.active {
-  background: #202326;
-  color: #fff8ea;
-}
-
-.toolbar-count {
-  min-height: 48px;
-  border-radius: 8px;
-  padding: 0 14px;
-  background: #2c3435;
-  color: #fff8ea;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  white-space: nowrap;
-}
-
-.toolbar-count strong {
-  font-size: 22px;
-}
-
-.toolbar-count span {
-  color: rgba(255, 248, 234, 0.72);
-  font-weight: 900;
-}
-
 .eyebrow {
   margin: 0 0 8px;
   color: #a94f2f;
@@ -2175,21 +2092,6 @@ button {
   font-weight: 900;
   letter-spacing: 0;
   text-transform: uppercase;
-}
-
-.home-stats {
-  border: 1px solid rgba(32, 35, 38, 0.14);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.58);
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  overflow: hidden;
-}
-
-.home-side {
-  width: min(420px, 100%);
-  display: grid;
-  gap: 14px;
 }
 
 .account-bar {
@@ -2230,6 +2132,12 @@ button {
   background: rgba(255, 253, 247, 0.64);
 }
 
+.toolbar-account {
+  min-height: 48px;
+  padding: 7px;
+  justify-self: end;
+}
+
 .avatar-mark {
   width: 34px;
   height: 34px;
@@ -2261,27 +2169,6 @@ button {
   border-color: #9b7a34;
   background: #202326;
   color: #fff8ea;
-}
-
-.home-stats div {
-  min-height: 94px;
-  padding: 18px;
-  display: grid;
-  place-items: center;
-  border-left: 1px solid rgba(32, 35, 38, 0.1);
-}
-
-.home-stats div:first-child {
-  border-left: 0;
-}
-
-.home-stats strong {
-  font-size: 30px;
-}
-
-.home-stats span {
-  color: #606966;
-  font-weight: 800;
 }
 
 .home-layout {
@@ -3015,13 +2902,33 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .home-stats,
-  .home-side,
   .activity-panel,
   .problem-pane,
   .judge-pane {
     width: 100%;
     flex-basis: auto;
+  }
+
+  .home-hero-copy {
+    max-width: none;
+  }
+
+  .hero-language-marks {
+    right: 24px;
+    gap: 18px;
+  }
+
+  .python-logo {
+    width: 78px;
+  }
+
+  .java-coffee-logo {
+    width: 112px;
+  }
+
+  .toolbar-account {
+    width: 100%;
+    justify-self: stretch;
   }
 
   .problem-catalog {
@@ -3072,28 +2979,9 @@ button:disabled {
     width: 100%;
   }
 
-  .home-stats,
   .problem-catalog,
   .examples {
     grid-template-columns: 1fr;
-  }
-
-  .difficulty-filter {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .toolbar-count {
-    justify-content: flex-start;
-  }
-
-  .home-stats div {
-    min-height: 72px;
-    border-left: 0;
-    border-top: 1px solid rgba(32, 35, 38, 0.1);
-  }
-
-  .home-stats div:first-child {
-    border-top: 0;
   }
 
   .editor-toolbar {
@@ -3193,15 +3081,48 @@ button:disabled {
 }
 
 .home-header {
-  min-height: 266px;
+  position: relative;
+  max-width: 1440px;
+  min-height: 168px;
   margin-bottom: 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 28px;
+  padding: 22px 28px;
   background:
     linear-gradient(110deg, rgba(255, 253, 247, 0.94) 0%, rgba(255, 248, 234, 0.78) 58%, rgba(231, 222, 208, 0.74) 100%);
   box-shadow: var(--shadow-soft);
   overflow: hidden;
+}
+
+.home-hero-copy {
+  width: 100%;
+  padding-right: 260px;
+}
+
+.hero-language-marks {
+  position: absolute;
+  right: 42px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 24px;
+  pointer-events: none;
+}
+
+.hero-language-logo {
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 24px rgba(32, 35, 38, 0.12));
+}
+
+.python-logo {
+  width: 92px;
+}
+
+.java-coffee-logo {
+  width: 128px;
 }
 
 .home-header > div:first-child {
@@ -3214,14 +3135,14 @@ button:disabled {
   display: block;
   width: 94px;
   height: 5px;
-  margin-top: 22px;
+  margin-top: 14px;
   border-radius: 999px;
   background: var(--rust);
 }
 
 .home-header h1 {
   max-width: 760px;
-  font-size: 54px;
+  font-size: 46px;
   line-height: 1.06;
 }
 
@@ -3232,7 +3153,7 @@ button:disabled {
 
 .home-subtitle {
   max-width: 650px;
-  margin-top: 18px;
+  margin-top: 12px;
   color: var(--muted);
   font-size: 16px;
 }
@@ -3241,14 +3162,7 @@ button:disabled {
   color: var(--rust);
 }
 
-.home-side {
-  width: min(450px, 100%);
-  align-self: stretch;
-  align-content: end;
-}
-
 .account-bar,
-.home-stats,
 .catalog-toolbar,
 .problem-card,
 .admin-panel,
@@ -3269,27 +3183,6 @@ button:disabled {
 .account-bar {
   background: rgba(255, 253, 247, 0.86);
   backdrop-filter: blur(12px);
-}
-
-.home-stats {
-  background: var(--ink);
-  color: var(--paper-warm);
-}
-
-.home-stats div {
-  min-height: 104px;
-  border-left-color: rgba(255, 248, 234, 0.12);
-}
-
-.home-stats strong {
-  font-size: 34px;
-  line-height: 1;
-}
-
-.home-stats span {
-  color: rgba(255, 248, 234, 0.66);
-  font-size: 12px;
-  letter-spacing: 0;
 }
 
 .catalog-toolbar {
@@ -3320,29 +3213,17 @@ button:disabled {
   box-shadow: 0 0 0 3px rgba(169, 79, 47, 0.14);
 }
 
-.difficulty-filter {
-  border-color: #d2c3b1;
-  background: #eee4d6;
-}
-
-.difficulty-filter button,
 .auth-tabs button {
   transition: background 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
-.difficulty-filter button:hover,
 .auth-tabs button:hover {
   background: rgba(32, 35, 38, 0.07);
 }
 
-.difficulty-filter button.active,
 .auth-tabs button.active {
   background: var(--ink);
   color: var(--paper-warm);
-}
-
-.toolbar-count {
-  background: var(--ink);
 }
 
 .home-layout {
@@ -3620,6 +3501,18 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .home-hero-copy {
+    max-width: none;
+  }
+
+  .toolbar-account {
+    width: 100%;
+  }
+
+  .toolbar-account {
+    justify-self: stretch;
+  }
+
   .problem-catalog {
     grid-template-columns: repeat(2, minmax(220px, 1fr));
   }
@@ -3643,6 +3536,27 @@ button:disabled {
     padding: 20px;
   }
 
+  .home-hero-copy {
+    padding-right: 0;
+  }
+
+  .hero-language-marks {
+    right: 18px;
+    bottom: 16px;
+    top: auto;
+    transform: none;
+    gap: 10px;
+    opacity: 0.9;
+  }
+
+  .python-logo {
+    width: 45px;
+  }
+
+  .java-coffee-logo {
+    width: 64px;
+  }
+
   .home-header h1 {
     font-size: 34px;
   }
@@ -3653,24 +3567,6 @@ button:disabled {
 
   .home-subtitle {
     font-size: 15px;
-  }
-
-  .home-stats div {
-    min-height: 82px;
-    border-top: 0;
-    border-left: 1px solid rgba(255, 248, 234, 0.12);
-  }
-
-  .home-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .home-stats div:first-child {
-    border-left: 0;
-  }
-
-  .home-stats strong {
-    font-size: 28px;
   }
 
   .catalog-toolbar {
