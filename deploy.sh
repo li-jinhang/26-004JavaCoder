@@ -38,6 +38,9 @@ BACKEND_JAVA_OPTS="${BACKEND_JAVA_OPTS:-}"
 BACKEND_PID_FILE="${BACKEND_PID_FILE:-/opt/javacoder/backend/javacoder-backend.pid}"
 BACKEND_LOG_FILE="${BACKEND_LOG_FILE:-/opt/javacoder/backend/javacoder-backend.log}"
 JAVACODER_SQLITE_PATH="${JAVACODER_SQLITE_PATH:-/opt/javacoder/data/javacoder.sqlite}"
+LLM_CONFIG_SOURCE="${LLM_CONFIG_SOURCE:-${APP_DIR}/backend/config/llm.yml}"
+LLM_CONFIG_TARGET="${LLM_CONFIG_TARGET:-${BACKEND_DEPLOY_DIR}/config/llm.yml}"
+DEPLOY_LLM_CONFIG="${DEPLOY_LLM_CONFIG:-auto}" # auto, true, or false
 DEPLOY_BACKEND_JAR="${DEPLOY_BACKEND_JAR:-${DEFAULT_DEPLOY_BACKEND_JAR}}"
 BACKEND_STOP_PORT_PROCESS="${BACKEND_STOP_PORT_PROCESS:-auto}" # auto, true, or false
 MAVEN_CLEAN="${MAVEN_CLEAN:-${DEFAULT_MAVEN_CLEAN}}"
@@ -159,6 +162,25 @@ deploy_backend_jar() {
   run_sudo install -m 0644 "${source_jar}" "${target_jar}"
 }
 
+deploy_backend_config() {
+  if [[ "${DEPLOY_LLM_CONFIG}" == "false" ]]; then
+    log "Skipping LLM config deployment because DEPLOY_LLM_CONFIG=false"
+    return 0
+  fi
+
+  if [[ ! -f "${LLM_CONFIG_SOURCE}" ]]; then
+    if [[ "${DEPLOY_LLM_CONFIG}" == "true" ]]; then
+      fail "LLM config source not found: ${LLM_CONFIG_SOURCE}"
+    fi
+    log "No LLM config file found at ${LLM_CONFIG_SOURCE}; use JAVACODER_LLM_* env vars or create ${LLM_CONFIG_TARGET}"
+    return 0
+  fi
+
+  log "Deploying LLM config to ${LLM_CONFIG_TARGET}"
+  run_sudo mkdir -p "$(dirname "${LLM_CONFIG_TARGET}")"
+  run_sudo install -m 0600 "${LLM_CONFIG_SOURCE}" "${LLM_CONFIG_TARGET}"
+}
+
 restart_backend_systemd() {
   need_cmd systemctl
   [[ -n "${BACKEND_SERVICE}" ]] || fail "BACKEND_SERVICE is required when BACKEND_RUN_MODE=systemd"
@@ -208,8 +230,9 @@ stop_backend_port_processes() {
 }
 
 restart_backend_jar() {
-  local target_jar
+  local target_jar target_dir quoted_target_dir quoted_target_jar quoted_log_file quoted_pid_file
   target_jar="${BACKEND_DEPLOY_DIR}/${BACKEND_JAR_NAME}"
+  target_dir="${BACKEND_DEPLOY_DIR}"
 
   log "Restarting backend with java -jar"
   run_sudo mkdir -p "$(dirname "${BACKEND_PID_FILE}")" "$(dirname "${BACKEND_LOG_FILE}")"
@@ -226,11 +249,23 @@ restart_backend_jar() {
 
   stop_backend_port_processes
 
-  if [[ "${USE_SUDO}" == "true" || ( "${USE_SUDO}" == "auto" && "${EUID}" -ne 0 ) ]]; then
-    sudo sh -c "JAVACODER_SQLITE_PATH='${JAVACODER_SQLITE_PATH}' nohup java ${BACKEND_JAVA_OPTS} -jar '${target_jar}' >> '${BACKEND_LOG_FILE}' 2>&1 & echo \$! > '${BACKEND_PID_FILE}'"
-  else
-    sh -c "JAVACODER_SQLITE_PATH='${JAVACODER_SQLITE_PATH}' nohup java ${BACKEND_JAVA_OPTS} -jar '${target_jar}' >> '${BACKEND_LOG_FILE}' 2>&1 & echo \$! > '${BACKEND_PID_FILE}'"
-  fi
+  local backend_env=(
+    "JAVACODER_SQLITE_PATH=${JAVACODER_SQLITE_PATH}"
+  )
+  local env_name env_value
+  for env_name in JAVACODER_LLM_ENABLED JAVACODER_LLM_BASE_URL JAVACODER_LLM_API_KEY JAVACODER_LLM_MODEL; do
+    env_value="${!env_name:-}"
+    if [[ -n "${env_value}" ]]; then
+      backend_env+=("${env_name}=${env_value}")
+    fi
+  done
+
+  printf -v quoted_target_dir '%q' "${target_dir}"
+  printf -v quoted_target_jar '%q' "${target_jar}"
+  printf -v quoted_log_file '%q' "${BACKEND_LOG_FILE}"
+  printf -v quoted_pid_file '%q' "${BACKEND_PID_FILE}"
+
+  run_sudo env "${backend_env[@]}" bash -c "cd ${quoted_target_dir} || exit 1; nohup java ${BACKEND_JAVA_OPTS} -jar ${quoted_target_jar} >> ${quoted_log_file} 2>&1 & echo \$! > ${quoted_pid_file}"
 }
 
 restart_backend() {
@@ -283,6 +318,7 @@ main() {
   else
     log "Skipping backend jar deployment because DEPLOY_BACKEND_JAR=false"
   fi
+  deploy_backend_config
   restart_backend
   wait_for_healthcheck
   log "Deployment completed"
