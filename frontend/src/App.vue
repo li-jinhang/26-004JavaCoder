@@ -1555,19 +1555,50 @@ function closeSolutionDialog() {
   solutionCopyError.value = ''
 }
 
+async function writeTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch (error) {
+      // Fall through to the textarea fallback for non-secure deployments.
+    }
+  }
+
+  const textArea = document.createElement('textarea')
+  textArea.value = text
+  textArea.setAttribute('readonly', '')
+  textArea.style.position = 'fixed'
+  textArea.style.top = '-9999px'
+  textArea.style.left = '-9999px'
+
+  document.body.appendChild(textArea)
+  textArea.focus()
+  textArea.select()
+  textArea.setSelectionRange(0, textArea.value.length)
+
+  try {
+    return document.execCommand('copy')
+  } catch (error) {
+    return false
+  } finally {
+    document.body.removeChild(textArea)
+  }
+}
+
 async function copySolutionCode() {
   if (!currentSolution.value) {
     return
   }
 
-  try {
-    await navigator.clipboard.writeText(currentSolution.value)
+  if (await writeTextToClipboard(currentSolution.value)) {
     copiedSolution.value = true
     solutionCopyError.value = ''
-  } catch (error) {
-    copiedSolution.value = false
-    solutionCopyError.value = '复制失败，请手动选中代码复制。'
+    return
   }
+
+  copiedSolution.value = false
+  solutionCopyError.value = '复制失败，请手动选中代码复制。'
 }
 
 function openSolutionEditor(solution = null) {
