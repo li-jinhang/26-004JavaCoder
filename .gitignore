@@ -31,6 +31,10 @@ frontend/dist/
 .vscode/
 *.iml
 
+# Codex local artifacts
+.codex/
+.codex-logs/
+
 # OS
 .DS_Store
 Thumbs.db
